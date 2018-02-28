@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {parseUrl, getSourceUrl} from '../url';
-import {map} from '../utils/object';
+import {getSourceUrl, parseUrl} from '../url';
 import {isArray} from '../types';
+import {map} from '../utils/object';
 import {registerServiceBuilderForDoc} from '../service';
 
 /** @private @const {!Array<string>} */
@@ -75,8 +75,8 @@ export class DocInfo {
     if (!canonicalUrl) {
       const canonicalTag = rootNode.querySelector('link[rel=canonical]');
       canonicalUrl = canonicalTag
-          ? parseUrl(canonicalTag.href).href
-          : sourceUrl;
+        ? parseUrl(canonicalTag.href).href
+        : sourceUrl;
     }
     const pageViewId = getPageViewId(ampdoc.win);
     const linkRels = getLinkRels(ampdoc.win.document);
@@ -109,7 +109,7 @@ function getPageViewId(win) {
  * Returns a map object of link tag relations in document head.
  * Key is the link rel, value is a list of corresponding hrefs.
  * @param {!Document} doc
- * @return {!Object<string, string|!Array<string>>}
+ * @return {!JsonObject<string, string|!Array<string>>}
  */
 function getLinkRels(doc) {
   const linkRels = map();

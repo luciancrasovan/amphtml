@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
+import * as sinon from 'sinon';
+import {Services} from '../../src/services';
 import {Viewer} from '../../src/service/viewer-impl';
-import {ampdocServiceFor} from '../../src/ampdoc';
 import {dev} from '../../src/log';
 import {installDocService} from '../../src/service/ampdoc-impl';
+import {installDocumentStateService} from '../../src/service/document-state';
 import {installPlatformService} from '../../src/service/platform-impl';
 import {installTimerService} from '../../src/service/timer-impl';
 import {parseUrl, removeFragment} from '../../src/url';
-import * as sinon from 'sinon';
 
 
 describe('Viewer', () => {
@@ -67,7 +68,7 @@ describe('Viewer', () => {
       defaultView: windowApi,
       hidden: false,
       visibilityState: 'visible',
-      addEventListener: function(type, listener) {
+      addEventListener(type, listener) {
         events[type] = listener;
       },
       referrer: '',
@@ -79,11 +80,13 @@ describe('Viewer', () => {
     windowApi.history = {
       replaceState: () => {},
     };
-    sandbox.stub(windowApi.history, 'replaceState', (state, title, url) => {
-      windowApi.location.href = url;
-    });
+    sandbox.stub(windowApi.history, 'replaceState').callsFake(
+        (state, title, url) => {
+          windowApi.location.href = url;
+        });
     installDocService(windowApi, /* isSingleDoc */ true);
-    ampdoc = ampdocServiceFor(windowApi).getAmpDoc();
+    installDocumentStateService(windowApi);
+    ampdoc = Services.ampdocServiceFor(windowApi).getAmpDoc();
     installPlatformService(windowApi);
     installTimerService(windowApi);
     events = {};
@@ -168,6 +171,22 @@ describe('Viewer', () => {
     expect(viewer.getLastVisibleTime()).to.equal(0);
   });
 
+  it('should return promise that resolve on visible', function* () {
+    const viewer = new Viewer(ampdoc);
+    expect(viewer.isVisible()).to.be.true;
+    let promise = viewer.whenNextVisible();
+    yield promise;
+    viewer.receiveMessage('visibilitychange', {
+      state: 'hidden',
+    });
+    promise = viewer.whenNextVisible();
+    expect(viewer.isVisible()).to.be.false;
+    viewer.receiveMessage('visibilitychange', {
+      state: 'visible',
+    });
+    return promise;
+  });
+
   it('should initialize firstVisibleTime for initially visible doc', () => {
     clock.tick(1);
     const viewer = new Viewer(ampdoc);
@@ -240,7 +259,8 @@ describe('Viewer', () => {
     it('should replace URL for the same non-proxy origin', () => {
       const fragment = '#replaceUrl=http://www.example.com/two%3Fa%3D1&b=1';
       setUrl('http://www.example.com/one' + fragment);
-      new Viewer(ampdoc);
+      const viewer = new Viewer(ampdoc);
+      viewer.replaceUrl(viewer.getParam('replaceUrl'));
       expect(windowApi.history.replaceState).to.be.calledOnce;
       expect(windowApi.history.replaceState).to.be.calledWith({}, '',
           'http://www.example.com/two?a=1' + fragment);
@@ -253,7 +273,8 @@ describe('Viewer', () => {
     it('should ignore replacement fragment', () => {
       const fragment = '#replaceUrl=http://www.example.com/two%23b=2&b=1';
       setUrl('http://www.example.com/one' + fragment);
-      new Viewer(ampdoc);
+      const viewer = new Viewer(ampdoc);
+      viewer.replaceUrl(viewer.getParam('replaceUrl'));
       expect(windowApi.history.replaceState).to.be.calledOnce;
       expect(windowApi.history.replaceState).to.be.calledWith({}, '',
           'http://www.example.com/two' + fragment);
@@ -264,7 +285,8 @@ describe('Viewer', () => {
     it('should replace relative URL for the same non-proxy origin', () => {
       const fragment = '#replaceUrl=/two&b=1';
       setUrl(removeFragment(window.location.href) + fragment);
-      new Viewer(ampdoc);
+      const viewer = new Viewer(ampdoc);
+      viewer.replaceUrl(viewer.getParam('replaceUrl'));
       expect(windowApi.history.replaceState).to.be.calledOnce;
       expect(windowApi.history.replaceState).to.be.calledWith({}, '',
           window.location.origin + '/two' + fragment);
@@ -275,7 +297,8 @@ describe('Viewer', () => {
     it('should fail to replace URL for a wrong non-proxy origin', () => {
       const fragment = '#replaceUrl=http://other.example.com/two&b=1';
       setUrl('http://www.example.com/one' + fragment);
-      new Viewer(ampdoc);
+      const viewer = new Viewer(ampdoc);
+      viewer.replaceUrl(viewer.getParam('replaceUrl'));
       expect(windowApi.history.replaceState).to.not.be.called;
       expect(windowApi.location.originalHref).to.be.undefined;
     });
@@ -284,11 +307,12 @@ describe('Viewer', () => {
       const fragment = '#replaceUrl=http://www.example.com/two&b=1';
       setUrl('http://www.example.com/one' + fragment);
       windowApi.history.replaceState.restore();
-      sandbox.stub(windowApi.history, 'replaceState', () => {
+      sandbox.stub(windowApi.history, 'replaceState').callsFake(() => {
         throw new Error('intentional');
       });
+      const viewer = new Viewer(ampdoc);
       expect(() => {
-        new Viewer(ampdoc);
+        viewer.replaceUrl(viewer.getParam('replaceUrl'));
       }).to.not.throw();
       expect(windowApi.location.originalHref).to.be.undefined;
     });
@@ -297,7 +321,8 @@ describe('Viewer', () => {
       const fragment =
           '#replaceUrl=https://cdn.ampproject.org/c/www.example.com/two&b=1';
       setUrl('https://cdn.ampproject.org/c/www.example.com/one' + fragment);
-      new Viewer(ampdoc);
+      const viewer = new Viewer(ampdoc);
+      viewer.replaceUrl(viewer.getParam('replaceUrl'));
       expect(windowApi.history.replaceState).to.be.calledOnce;
       expect(windowApi.history.replaceState).to.be.calledWith({}, '',
           'https://cdn.ampproject.org/c/www.example.com/two' + fragment);
@@ -310,7 +335,8 @@ describe('Viewer', () => {
       const fragment =
           '#replaceUrl=https://cdn.ampproject.org/c/other.example.com/two&b=1';
       setUrl('https://cdn.ampproject.org/c/www.example.com/one' + fragment);
-      new Viewer(ampdoc);
+      const viewer = new Viewer(ampdoc);
+      viewer.replaceUrl(viewer.getParam('replaceUrl'));
       expect(windowApi.history.replaceState).to.not.be.called;
       expect(windowApi.location.originalHref).to.be.undefined;
     });
@@ -318,8 +344,9 @@ describe('Viewer', () => {
     it('should NOT replace URL in shadow doc', () => {
       const fragment = '#replaceUrl=http://www.example.com/two&b=1';
       setUrl('http://www.example.com/one' + fragment);
-      sandbox.stub(ampdoc, 'isSingleDoc', () => false);
-      new Viewer(ampdoc);
+      sandbox.stub(ampdoc, 'isSingleDoc').callsFake(() => false);
+      const viewer = new Viewer(ampdoc);
+      viewer.replaceUrl(viewer.getParam('replaceUrl'));
       expect(windowApi.history.replaceState).to.not.be.called;
     });
   });
@@ -778,6 +805,32 @@ describe('Viewer', () => {
     });
   });
 
+  describe('isWebviewEmbedded', () => {
+    it('should be webview w/ "webview=1"', () => {
+      windowApi.parent = windowApi;
+      windowApi.location.hash = '#webview=1';
+      expect(new Viewer(ampdoc).isWebviewEmbedded()).to.be.true;
+    });
+
+    it('should NOT be webview w/o "webview=1"', () => {
+      windowApi.parent = windowApi;
+      windowApi.location.hash = '#foo=1';
+      expect(new Viewer(ampdoc).isWebviewEmbedded()).to.be.false;
+    });
+
+    it('should NOT be webview w/ "webview=0"', () => {
+      windowApi.parent = windowApi;
+      windowApi.location.hash = '#webview=0';
+      expect(new Viewer(ampdoc).isWebviewEmbedded()).to.be.false;
+    });
+
+    it('should NOT be webview if iframed regardless of "webview=1"', () => {
+      windowApi.parent = {};
+      windowApi.location.hash = '#webview=1';
+      expect(new Viewer(ampdoc).isEmbedded()).to.be.false;
+    });
+  });
+
   describe('isTrustedViewer', () => {
 
     it('should consider non-trusted when not iframed', () => {
@@ -1009,15 +1062,15 @@ describe('Viewer', () => {
     });
 
     describe('should NOT trust wrong or non-whitelisted domain variations',
-      () => {
-        test('https://google.net', false);
-        test('https://google.other.com', false);
-        test('https://www.google.other.com', false);
-        test('https://withgoogle.com', false);
-        test('https://acme.com', false);
-        test('https://google', false);
-        test('https://www.google', false);
-      });
+        () => {
+          test('https://google.net', false);
+          test('https://google.other.com', false);
+          test('https://www.google.other.com', false);
+          test('https://withgoogle.com', false);
+          test('https://acme.com', false);
+          test('https://google', false);
+          test('https://www.google', false);
+        });
 
     describe('tests for b/32626673', () => {
       test('www.google.com', true, true);
@@ -1032,6 +1085,36 @@ describe('Viewer', () => {
   });
 
   describe('referrer', () => {
+    function test(referrer, toBeTrusted) {
+      it('testing ' + referrer, () => {
+        const viewer = new Viewer(ampdoc);
+        expect(viewer.isTrustedReferrer_(referrer)).to.equal(toBeTrusted);
+      });
+    }
+
+    describe('should not trust host as referrer with http', () => {
+      test('http://t.co/asdf', false);
+    });
+
+    describe('should trust whitelisted hosts', () => {
+      test('https://t.co/asdf', true);
+    });
+
+    describe('should not trust non-whitelisted hosts', () => {
+      test('https://www.t.co/asdf', false);
+      test('https://t.com/asdf', false);
+      test('https://t.cn/asdf', false);
+    });
+
+    describe('isTrustedReferrer', () => {
+      it('should return true for whitelisted hosts', () => {
+        windowApi.document.referrer = 'https://t.co/docref';
+        const viewer = new Viewer(ampdoc);
+        return viewer.isTrustedReferrer().then(isTrusted => {
+          expect(isTrusted).to.equal(true);
+        });
+      });
+    });
 
     it('should return document referrer if not overriden', () => {
       windowApi.parent = {};
@@ -1341,40 +1424,25 @@ describe('Viewer', () => {
 
   describe('navigateTo', () => {
     const ampUrl = 'https://cdn.ampproject.org/test/123';
-    it('should initiate a2a navigation', () => {
+    it('should message viewer if a2a capability is supported', () => {
       windowApi.location.hash = '#cap=a2a';
-      windowApi.top = {
-        location: {},
-      };
       const viewer = new Viewer(ampdoc);
       const send = sandbox.stub(viewer, 'sendMessage');
-      viewer.navigateTo(ampUrl, 'abc123');
-      expect(send.lastCall.args[0]).to.equal('a2a');
+      const result = viewer.navigateToAmpUrl(ampUrl, 'abc123');
+      expect(send.lastCall.args[0]).to.equal('a2aNavigate');
       expect(send.lastCall.args[1]).to.jsonEqual({
         url: ampUrl,
         requestedBy: 'abc123',
       });
-      expect(windowApi.top.location.href).to.be.undefined;
+      expect(result).to.be.true;
     });
 
-    it('should fail for non-amp url', () => {
-      windowApi.location.hash = '#cap=a2a';
-      const viewer = new Viewer(ampdoc);
-      sandbox.stub(viewer, 'sendMessage');
-      expect(() => {
-        viewer.navigateTo('http://www.test.com', 'abc123');
-      }).to.throw(/Invalid A2A URL/);
-    });
-
-    it('should perform fallback navigation', () => {
-      windowApi.top = {
-        location: {},
-      };
+    it('should return false if a2a capability is not supported', () => {
       const viewer = new Viewer(ampdoc);
       const send = sandbox.stub(viewer, 'sendMessage');
-      viewer.navigateTo(ampUrl, 'abc123');
+      const result = viewer.navigateToAmpUrl(ampUrl, 'abc123');
       expect(send).to.have.not.been.called;
-      expect(windowApi.top.location.href).to.equal(ampUrl);
+      expect(result).to.be.false;
     });
   });
 });

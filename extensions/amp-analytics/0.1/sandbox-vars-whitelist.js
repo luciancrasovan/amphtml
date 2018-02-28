@@ -44,4 +44,8 @@ export const SANDBOX_AVAILABLE_VARS = {
   'BROWSER_LANGUAGE': true,
   'AMP_VERSION': true,
   'BACKGROUND_STATE': true,
+  'USER_AGENT': true,
+  'FIRST_CONTENTFUL_PAINT': true,
+  'FIRST_VIEWPORT_READY': true,
+  'MAKE_BODY_VISIBLE': true,
 };

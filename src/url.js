@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-import {startsWith, endsWith} from './string';
-import {user} from './log';
+import {endsWith, startsWith} from './string';
 import {getMode} from './mode';
-import {urls} from './config';
 import {isArray} from './types';
 import {parseQueryString_} from './url-parse-query-string';
+import {tryDecodeUriComponent_} from './url-try-decode-uri-component';
+import {urls} from './config';
+import {user} from './log';
 
 /**
  * Cached a-tag to avoid memory allocation during URL parsing.
@@ -35,8 +36,11 @@ let a;
  */
 let cache;
 
-/** @private @const Matches amp_js_* paramters in query string. */
+/** @private @const Matches amp_js_* parameters in query string. */
 const AMP_JS_PARAMS_REGEX = /[?&]amp_js[^&]*/;
+
+/** @private @const Matches usqp parameters from goog experiment in query string. */
+const GOOGLE_EXPERIMENT_PARAMS_REGEX = /[?&]usqp[^&]*/;
 
 const INVALID_PROTOCOLS = [
   /*eslint no-script-url: 0*/ 'javascript:',
@@ -46,6 +50,15 @@ const INVALID_PROTOCOLS = [
 
 /** @const {string} */
 export const SOURCE_ORIGIN_PARAM = '__amp_source_origin';
+
+/**
+ * Returns the correct origin for a given window.
+ * @param {!Window} win
+ * @return {string} origin
+ */
+export function getWinOrigin(win) {
+  return win.origin || parseUrl(win.location.href).origin;
+}
 
 /**
  * Returns a Location-like object for the given URL. If it is relative,
@@ -104,7 +117,7 @@ export function parseUrlWithA(a, url) {
     pathname: a.pathname,
     search: a.search,
     hash: a.hash,
-    origin: null,  // Set below.
+    origin: null, // Set below.
   });
 
   // Some IE11 specific polyfills.
@@ -150,11 +163,11 @@ export function appendEncodedParamStringToUrl(url, paramString,
   const mainAndQuery = mainAndFragment[0].split('?', 2);
 
   let newUrl = mainAndQuery[0] + (
-      mainAndQuery[1]
-          ? (opt_addToFront
-              ? `?${paramString}&${mainAndQuery[1]}`
-              : `?${mainAndQuery[1]}&${paramString}`)
-          : `?${paramString}`);
+    mainAndQuery[1]
+      ? (opt_addToFront
+        ? `?${paramString}&${mainAndQuery[1]}`
+        : `?${mainAndQuery[1]}&${paramString}`)
+      : `?${paramString}`);
   newUrl += mainAndFragment[1] ? `#${mainAndFragment[1]}` : '';
   return newUrl;
 }
@@ -176,7 +189,7 @@ export function addParamToUrl(url, key, value, opt_addToFront) {
  * Appends query string fields and values to a url. The `params` objects'
  * `key`s and `value`s will be transformed into query string keys/values.
  * @param {string} url
- * @param {!Object<string, string|!Array<string>>} params
+ * @param {!JsonObject<string, string|!Array<string>>} params
  * @return {string}
  */
 export function addParamsToUrl(url, params) {
@@ -186,7 +199,7 @@ export function addParamsToUrl(url, params) {
 /**
  * Serializes the passed parameter map into a query string with both keys
  * and values encoded.
- * @param {!Object<string, string|!Array<string>>} params
+ * @param {!JsonObject<string, string|!Array<string>>} params
  * @return {string}
  */
 export function serializeQueryString(params) {
@@ -234,7 +247,7 @@ export function isSecureUrl(url) {
  * @return {string}
  */
 export function assertHttpsUrl(
-    urlString, elementContext, sourceName = 'source') {
+  urlString, elementContext, sourceName = 'source') {
   user().assert(urlString != null, '%s %s must be available',
       elementContext, sourceName);
   // (erwinm, #4560): type cast necessary until #4560 is fixed.
@@ -268,7 +281,7 @@ export function assertAbsoluteHttpOrHttpsUrl(urlString) {
  * dependency.
  *
  * @param {string} queryString
- * @return {!Object<string>}
+ * @return {!JsonObject}
  */
 export function parseQueryString(queryString) {
   return parseQueryString_(queryString);
@@ -354,7 +367,8 @@ function removeAmpJsParams(urlSearch) {
   }
   const search = urlSearch
       .replace(AMP_JS_PARAMS_REGEX, '')
-      .replace(/^[?&]/, '');  // Removes first ? or &.
+      .replace(GOOGLE_EXPERIMENT_PARAMS_REGEX, '')
+      .replace(/^[?&]/, ''); // Removes first ? or &.
   return search ? '?' + search : '';
 }
 
@@ -384,8 +398,8 @@ export function getSourceUrl(url) {
       'Unknown path prefix in url %s', url.href);
   const domainOrHttpsSignal = path[2];
   const origin = domainOrHttpsSignal == 's'
-      ? 'https://' + decodeURIComponent(path[3])
-      : 'http://' + decodeURIComponent(domainOrHttpsSignal);
+    ? 'https://' + decodeURIComponent(path[3])
+    : 'http://' + decodeURIComponent(domainOrHttpsSignal);
   // Sanity test that what we found looks like a domain.
   user().assert(origin.indexOf('.') > 0, 'Expected a . in origin %s', origin);
   path.splice(1, domainOrHttpsSignal == 's' ? 3 : 2);
@@ -476,4 +490,16 @@ export function checkCorsUrl(url) {
   const query = parseQueryString(parsedUrl.search);
   user().assert(!(SOURCE_ORIGIN_PARAM in query),
       'Source origin is not allowed in %s', url);
+}
+
+/**
+ * Tries to decode a URI component, falling back to opt_fallback (or an empty
+ * string)
+ *
+ * @param {string} component
+ * @param {string=} opt_fallback
+ * @return {string}
+ */
+export function tryDecodeUriComponent(component, opt_fallback) {
+  return tryDecodeUriComponent_(component, opt_fallback);
 }

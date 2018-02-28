@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+/** @externs */
+
 // HACK. Define application types used in default AMP externs
 // that are not in the 3p code.
 /** @constructor */
@@ -46,6 +48,13 @@ data.src;
 
 //twitter.js
 data.tweetid
+
+//mathml.js
+data.formula
+var mathjax
+mathjax.Hub
+mathjax.Hub.Queue
+window.MathJax
 
 // Under ads/google folder
 
@@ -87,6 +96,42 @@ data.cookieOptions;
 data.tagForChildDirectedTreatment;
 data.targeting;
 data.slot;
+
+// imaVideo.js
+var google;
+google.ima;
+google.ima.AdDisplayContainer;
+google.ima.AdDisplayContainer.initialize;
+google.ima.ImaSdkSettings;
+google.ima.ImaSdkSettings.setPlayerType;
+google.ima.ImaSdkSettings.setPlayerVersion;
+google.ima.AdsLoader;
+google.ima.AdsLoader.getSettings;
+google.ima.AdsLoader.requestAds;
+google.ima.AdsManagerLoadedEvent;
+google.ima.AdsManagerLoadedEvent.Type
+google.ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED;
+google.ima.AdsManagerLoadedEvent.getAdsManager;
+google.ima.AdErrorEvent;
+google.ima.AdErrorEvent.Type;
+google.ima.AdErrorEvent.Type.AD_ERROR;
+google.ima.AdsRequest;
+google.ima.ViewMode;
+google.ima.ViewMode.NORMAL;
+google.ima.ViewMode.FULLSCREEN;
+google.ima.AdsRenderingSettings;
+google.ima.UiElements;
+google.ima.UiElements.AD_ATTRIBUTION;
+google.ima.UiElements.COUNTDOWN;
+google.ima.AdEvent;
+google.ima.AdEvent.Type;
+google.ima.AdEvent.Type.CONTENT_PAUSE_REQUESTED;
+google.ima.AdEvent.Type.CONTENT_RESUME_REQUESTED;
+google.ima.AdsManager;
+google.ima.AdsManager.setVolume;
+google.ima.settings;
+google.ima.settings.setLocale;
+google.ima.settings.setVpaidMode;
 
 // 3P ads
 // Please sort by alphabetic order of the ad server name to avoid conflict
@@ -176,6 +221,21 @@ data.debug;
 data.adUnits;
 data.target;
 
+// adventive.js
+const adventive = {};
+adventive.Ad;
+adventive.addArgs = () => {};
+adventive.addInstance = () => {};
+adventive.ads;
+adventive.args;
+adventive.instances;
+adventive.isLibLoaded;
+adventive.modes;
+adventive.Plugin;
+adventive.plugins;
+adventive.utility;
+window.adventive = adventive;
+
 // colombia.js
 data.clmb_slot;
 data.clmb_position;
@@ -194,6 +254,9 @@ Criteo.Log.Debug;
 Criteo.CallRTA;
 Criteo.ComputeDFPTargetingForAMP;
 Criteo.PubTag = {};
+Criteo.PubTag.Adapters = {};
+Criteo.PubTag.Adapters.AMP = {};
+Criteo.PubTag.Adapters.AMP.Standalone;
 Criteo.PubTag.RTA = {};
 Criteo.PubTag.RTA.DefaultCrtgContentName;
 Criteo.PubTag.RTA.DefaultCrtgRtaCookieName
@@ -243,6 +306,13 @@ data.parameters;
 // holder.js
 data.queue;
 
+// imedia.js
+data.positions
+
+// imonomy.js
+data.pid;
+data.subId;
+
 // improvedigital.js
 data.placement;
 data.optin;
@@ -254,6 +324,14 @@ window._inmobi;
 _inmobi.getNewAd;
 data.siteid;
 data.slotid;
+
+// innity.js
+var innity_adZone;
+var innityAMPZone;
+var innityAMPTag;
+data.pub;
+data.zone;
+data.channel;
 
 // ix.js
 data.ixId;
@@ -494,3 +572,6 @@ data.renderer;
 // zergnet.js
 window.zergnetWidgetId;
 data.zergid;
+
+// _ping_.js
+window.networkIntegrationDataParamForTesting;

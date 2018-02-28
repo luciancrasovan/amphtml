@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import {urlReplacementsForDoc} from '../../../src/services';
+import {Services} from '../../../src/services';
 import {
   VariableSource,
   getNavigationData,
-  getTimingDataSync,
   getTimingDataAsync,
+  getTimingDataSync,
 } from '../../../src/service/variable-source';
 import {user} from '../../../src/log';
 
@@ -64,6 +64,10 @@ const WHITELISTED_VARIABLES = [
   'VIEWER',
   'TOTAL_ENGAGED_TIME',
   'AMP_VERSION',
+  'USER_AGENT',
+  'FIRST_CONTENTFUL_PAINT',
+  'FIRST_VIEWPORT_READY',
+  'MAKE_BODY_VISIBLE',
 ];
 
 
@@ -76,7 +80,7 @@ export class A4AVariableSource extends VariableSource {
   constructor(ampdoc, embedWin) {
     super();
     /** @private {VariableSource} global variable source for fallback. */
-    this.globalVariableSource_ = urlReplacementsForDoc(ampdoc)
+    this.globalVariableSource_ = Services.urlReplacementsForDoc(ampdoc)
         .getVariableSource();
 
     /** @private {!Window} */

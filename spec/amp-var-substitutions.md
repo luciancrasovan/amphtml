@@ -36,7 +36,7 @@ The following table lists the features that enable variable substitutions, as we
   <tr>
     <th width="25%"><strong>AMP Feature</strong></th>
     <th width="25%"><strong>URL limitations</strong></th>
-    <th width="25%"><strong>Requires per-use opt-in?</strong></th>
+    <th width="25%"><strong>Requires <a href="#per-use-opt-in">per-use opt-in</a>?</strong></th>
     <th width="25%"><strong>Restrictions</strong></th>
   </tr>
   <tr>
@@ -48,13 +48,19 @@ The following table lists the features that enable variable substitutions, as we
   <tr>
     <td width="25%"><code>amp-list</code><br><a href="https://github.com/ampproject/amphtml/blob/master/extensions/amp-list/amp-list.md#substitutions">Detailed documentation</a></td>
     <td width="25%">Requests must be HTTPS URLs (not a requirement specific to variable substitutions)</td>
-    <td width="25%">No</td>
+    <td width="25%">Yes, if fetching cross-origin resources via <code>[src]</code> <a href="https://www.ampproject.org/docs/reference/components/amp-bind#element-specific-attributes">attribute binding</a>. Otherwise, no. Read more about <a href="#per-use-opt-in">per-use opt-in</a></td>
     <td width="25%">None</td>
   </tr>
   <tr>
     <td width="25%"><code>amp-pixel</code><br><a href="https://github.com/ampproject/amphtml/blob/master/builtins/amp-pixel.md#substitutions">Detailed documentation</a></td>
     <td width="25%">Requests must be HTTPS URLs (not a requirement specific to variable substitutions)</td>
     <td width="25%">No</td>
+    <td width="25%">None</td>
+  </tr>
+  <tr>
+    <td width="25%"><code>amp-state</code><br><a href="https://github.com/ampproject/amphtml/blob/master/extensions/amp-bind/amp-bind.md#attributes">Detailed documentation</a></td>
+    <td width="25%">Requests must be HTTPS URLs (not a requirement specific to variable substitutions)</td>
+    <td width="25%">Yes, if fetching cross-origin resources via <code>[src]</code> <a href="https://www.ampproject.org/docs/reference/components/amp-bind#element-specific-attributes">attribute binding</a>. Otherwise, no. Read more about <a href="#per-use-opt-in">per-use opt-in</a></td>
     <td width="25%">None</td>
   </tr>
   <tr>
@@ -68,13 +74,13 @@ The following table lists the features that enable variable substitutions, as we
       </ul>
     </td>
     <td width="25%">Yes, via space-delimited attribute <code>data-amp-replace</code>. Read more about <a href="#per-use-opt-in">per-use opt-in</a></td>
-    <td width="25%">Only these variables are supported: <code>CLIENT_ID</code> and <code>QUERY_PARAM</code>.<br>See the section on <a href="#substitution-timing">"substitution timing"</a> for further notes.</td>
+    <td width="25%">Only these variables are supported: <code>CLIENT_ID</code> and <code>QUERY_PARAM</code>.<br>See the section on <a href="#substitution-timing">"substitution timing"</a> for further notes</td>
   </tr>
   <tr>
     <td width="25%">Form inputs<br><a href="https://github.com/ampproject/amphtml/blob/master/extensions/amp-form/amp-form.md#variable-substitutions">Detailed documentation</a></td>
     <td width="25%">Requests must be HTTPS URLs (not a requirement specific to variable substitutions)</td>
     <td width="25%">Yes, via space-delimited attribute <code>data-amp-replace</code>. Read more about <a href="#per-use-opt-in">per-use opt-in</a></td>
-    <td width="25%">See the section on <a href="#substitution-timing">"substitution timing"</a> for further notes.</td>
+    <td width="25%">See the section on <a href="#substitution-timing">"substitution timing"</a> for further notes</td>
   </tr>
 </table>
 
@@ -148,6 +154,7 @@ The tables below list the available URL variables grouped by type of usage. Furt
 | [Counter](#counter) | `COUNTER` | `${counter}` |
 | [Document Charset](#document-charset) | `DOCUMENT_CHARSET` | `${documentCharset}` |
 | [Document Referrer](#document-referrer) | `DOCUMENT_REFERRER` | `${documentReferrer}` |
+| [External Referrer](#external-referrer) | `EXTERNAL_REFERRER` | `${externalReferrer}` |
 | [Source URL](#source-url)           | `SOURCE_URL`      | `${sourceUrl}` |
 | [Source Host](#source-host)         | `SOURCE_HOST`     | `${sourceHost}` |
 | [Source Hostname](#source-hostname) | `SOURCE_HOSTNAME` | `${sourceHostname}` |
@@ -186,6 +193,7 @@ The tables below list the available URL variables grouped by type of usage. Furt
 | [Scroll Left](#scroll-left)         | `SCROLL_LEFT`     | `${scrollLeft}`     |
 | [Scroll Top](#scroll-top)           | `SCROLL_TOP`      | `${scrollTop}`      |
 | [Timezone](#timezone)               | `TIMEZONE`        | `${timezone}`       |
+| [User Agent](#user-agent)           | `USER_AGENT`      | `${userAgent}`      |
 | [Viewport Height](#viewport-height) | `VIEWPORT_HEIGHT` | `${viewportHeight}` |
 | [Viewport Width](#viewport-width)   | `VIEWPORT_WIDTH`  | `${viewportWidth}`  |
 
@@ -211,6 +219,8 @@ The tables below list the available URL variables grouped by type of usage. Furt
 | [Element Y](#element-y) | N/A | `${elementY}` |
 | [First Seen Time](#first-seen-time) | N/A | `${firstSeenTime}` |
 | [First Visible Time](#first-visible-time) | N/A | `${firstVisibleTime}` |
+| [Intersection Ratio](#intersection-ratio) | N/A | `${intersectionRatio}` |
+| [Intersection Rect](#intersection-rect) | N/A | `${intersectionRect}` |
 | [Last Seen Time](#last-seen-time) | N/A | `${lastSeenTime}` |
 | [Last Visible Time](#last-visible-time) | N/A | `${lastVisibleTime}` |
 | [Load Time Visibility](#load-time-visibility) | N/A | `${loadTimeVisibility}` |
@@ -219,6 +229,13 @@ The tables below list the available URL variables grouped by type of usage. Furt
 | [Min Visible Percentage](#min-visible-percentage) | N/A | `${minVisiblePercentage}` |
 | [Total Time](#total-time) | N/A | `${totalTime}` |
 | [Total Visible Time](#total-visible-time) | N/A | `${totalVisibleTime}` |
+
+### Timers
+
+| Variable Name | Platform Variable | amp-analytics Variable |
+|---------------|-------------------|------------------------|
+| [Timer Duration](#timer-duration) | N/A | `${timerDuration}` |
+| [Timer Start Time](#timer-start) | N/A | `${timerStart}` |
 
 ### Miscellaneous
 
@@ -233,6 +250,8 @@ The tables below list the available URL variables grouped by type of usage. Furt
 | [Random](#random) | `RANDOM` | `${random}` |
 | [Request Count](#request-count) | N/A | `${requestCount}` |
 | [Timestamp](#timestamp) | `TIMESTAMP` | `${timestamp}` |
+| [Error Name](#error-name) | N/A | `${errorName}` |
+| [Error Message](#error-message) | N/A | `${errorMessage}` |
 
 ### Variable Descriptions
 
@@ -420,7 +439,7 @@ Provides a per document-source-origin (the origin of the website where you publi
 
 * **platform variable**: `CLIENT_ID`
   *  Example: <br>
-  
+
   ```html
   <amp-pixel src="https://foo.com/pixel?cid=CLIENT_ID(cid-scope-cookie-fallback-name)"></amp-pixel>
 
@@ -434,8 +453,8 @@ Provides a per document-source-origin (the origin of the website where you publi
      <button on="tap:user-consent.dismiss">I accept</button>
   </amp-user-notification>
 
-  <!-- cid is not provided until `user-consent` is dismissed -->
-  <amp-pixel src="https://foo.com/pixel?cid=CLIENT_ID(cid-scope-cookie-fallback-name,user-consent-id)"></amp-pixel>
+  <!-- Client ID is not provided until `user-consent` is dismissed -->
+  <amp-pixel src="https://foo.com/pixel?cid=CLIENT_ID(cid-scope-cookie-fallback-name,user-consent)"></amp-pixel>
   ```
 * **amp-analytics variable**: `${clientId}`
   * Example usage: `${clientId(foo)}`
@@ -544,6 +563,35 @@ Provides the absolute Y coordinate of the top edge of the element specified by `
 * **platform variable**: N/A
 * **amp-analytics variable**: `${elementY}`
 
+#### Error Message
+
+Provides the message of the error that triggered an user error event. This variable is only available in a `trigger` of type `user-error`
+
+* **platform variable**: N/A
+* **amp-analytics variable**: `${errorMessage}`
+  * Example value: `Invalid multi-size data format`
+
+#### Error Name
+
+Provides the name of the error that triggered an user error event. This variable is only available in a `trigger` of type `user-error`
+
+* **platform variable**: N/A
+* **amp-analytics variable**: `${errorName}`
+  * Example value: `AMP-AD`
+
+#### External Referrer
+
+Provides the referrer where the user came from. Similar to [Document Referrer](#document_referrer), but the value is empty if user is navigated from same domain or the corresponding CDN proxy domain.
+Analytics vendor might prefer this value to Document Referrer for better session stitching, depending on the server side implementation.
+
+* **platform variable**: `EXTERNAL_REFERRER`
+  *  Example: <br>
+  ```html
+  <amp-pixel src="https://foo.com/pixel?referrer=EXTERNAL_REFERRER"></amp-pixel>
+  ```
+* **amp-analytics variable**: `${externalReferrer}`
+  * Example value: `https://www.google.com`
+
 #### Extra URL Parameters
 
 Provides all the parameters that are defined in the [`extraUrlParams`](../extensions/amp-analytics/amp-analytics.md#extra-url-params) block of the amp-analytics config as a variable. If you use the `extraUrlParams`  variable, the parameters are not appended to the end of the URL.
@@ -572,6 +620,25 @@ Provides the horizontal scroll boundary that triggered a scroll event. This vari
 
 * **platform variable**: N/A
 * **amp-analytics variable**: `${horizontalScrollBoundary}`
+
+#### Intersection Ratio
+
+Provides the fraction of the selected element that is visible. The value will be between 0.0 and 1.0, inclusive. For more information, please see the [IntersectionObserverEntry.intersectionRatio](https://developer.mozilla.org/en-US/docs/Web/API/IntersectionObserverEntry/intersectionRatio) API documentation.
+
+* **platform variable**: N/A
+* **amp-analytics variable**: `${intersectionRatio}`
+
+#### Intersection Rect
+
+Provides the bounds of the rectangle defining the portion of the selected element that is visible. For more information, please see the [IntersectionObserverEntry.intersectionRect](https://developer.mozilla.org/en-US/docs/Web/API/IntersectionObserverEntry/intersectionRect)  API documentation.
+
+Example value:
+```javascript
+{"left":0,"top":74,"width":256,"height":226,"bottom":300,"right":256,"x":0,"y":74}
+```
+
+* **platform variable**: N/A
+* **amp-analytics variable**: `${intersectionRect}`
 
 #### Last Seen Time
 
@@ -931,7 +998,7 @@ Provides the title of the current document.
 
 #### Timestamp
 
-Provides the number of seconds that have elapsed since 1970. (Epoch time)
+Provides the number of milliseconds that have elapsed since 1970. (Epoch time)
 
 * **platform variable**: `TIMESTAMP`
   *  Example: <br>
@@ -974,6 +1041,32 @@ Provides the total time for which the element has met the `visiblitySpec `condit
 
 * **platform variable**: N/A
 * **amp-analytics variable**: `${totalVisibleTime}`
+
+#### Timer Duration
+
+Provides the duration of the triggered timer since last start or interval in milliseconds. For timers stopped before a full interval completes, this will report the partial time.
+
+* **platform variable**: N/A
+* **amp-analytics variable**: `${timerDuration}`
+
+#### Timer Start Time
+
+Provides the start time of the triggered timer in milliseconds from epoch. Resets only on timer start.
+
+* **platform variable**: N/A
+* **amp-analytics variable**: `${timerStart}`
+
+#### User Agent
+
+Provides a string representing the user agent of the requesting software, usually tells about user's browser operating system.
+
+* **platform variable**: `USER_AGENT`
+  *  Example: <br>
+  ```html
+  <amp-pixel src="https://foo.com/pixel?sh=USER_AGENT"></amp-pixel>
+  ```
+* **amp-analytics variable**: `${userAgent}`
+  * Example value: `Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0`
 
 #### Vertical Scroll Boundary
 

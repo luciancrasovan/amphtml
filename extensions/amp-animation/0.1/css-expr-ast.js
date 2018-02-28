@@ -17,6 +17,22 @@
 const FINAL_URL_RE = /^(data|https)\:/i;
 const DEG_TO_RAD = 2 * Math.PI / 360;
 const GRAD_TO_RAD = Math.PI / 200;
+const VAR_CSS_RE = /(calc|var|url|rand|index|width|height|num)\(/i;
+const NORM_CSS_RE = /\d(%|em|rem|vw|vh|vmin|vmax|s|deg|grad)/i;
+const INFINITY_RE = /^(infinity|infinite)$/i;
+
+
+/**
+ * Returns `true` if the CSS expression contains variable components. The CSS
+ * parsing and evaluation is heavy, but used relatively rarely. This method
+ * can be used to avoid heavy parse/evaluate tasks.
+ * @param {string} css
+ * @param {boolean} normalize
+ * @return {boolean}
+ */
+export function isVarCss(css, normalize) {
+  return VAR_CSS_RE.test(css) || normalize && NORM_CSS_RE.test(css);
+}
 
 
 /**
@@ -39,6 +55,13 @@ export class CssContext {
    * @return {?CssNode}
    */
   getVar(unusedVarName) {}
+
+  /**
+   * Returns the current target's index in the context of other selected
+   * targets.
+   * @return {number}
+   */
+  getCurrentIndex() {}
 
   /**
    * Returns the current font size.
@@ -65,6 +88,14 @@ export class CssContext {
   getCurrentElementSize() {}
 
   /**
+   * Returns the specified element's size.
+   * @param {string} unusedSelector
+   * @param {?string} unusedSelectionMethod
+   * @return {!{width: number, height: number}}
+   */
+  getElementSize(unusedSelector, unusedSelectionMethod) {}
+
+  /**
    * Returns the dimension: "w" for width or "h" for height.
    * @return {?string}
    */
@@ -73,13 +104,11 @@ export class CssContext {
   /**
    * Pushes the dimension: "w" for width or "h" for height.
    * @param {?string} unusedDim
+   * @param {function():T} unusedCallback
+   * @return {T}
+   * @template T
    */
-  pushDimension(unusedDim) {}
-
-  /**
-   * Pops the dimension.
-   */
-  popDimension() {}
+  withDimension(unusedDim, unusedCallback) {}
 }
 
 
@@ -104,32 +133,35 @@ export class CssNode {
    * for a non-variable nodes (`isConst() == true`). Otherwise, `calc()` method
    * is used to calculate the new value.
    * @param {!CssContext} context
+   * @param {boolean} normalize
    * @return {?CssNode}
    * @final
    */
-  resolve(context) {
-    if (this.isConst()) {
+  resolve(context, normalize) {
+    if (this.isConst(normalize)) {
       return this;
     }
-    return this.calc(context);
+    return this.calc(context, normalize);
   }
 
   /**
    * Whether the CSS node is a constant or includes variable components.
+   * @param {boolean} unusedNormalize
    * @return {boolean}
    * @protected
    */
-  isConst() {
+  isConst(unusedNormalize) {
     return true;
   }
 
   /**
    * Calculates the value of all variable components.
    * @param {!CssContext} unusedContext
+   * @param {boolean} unusedNormalize
    * @return {?CssNode}
    * @protected
    */
-  calc(unusedContext) {
+  calc(unusedContext, unusedNormalize) {
     return this;
   }
 }
@@ -193,15 +225,16 @@ export class CssConcatNode extends CssNode {
   }
 
   /** @override */
-  isConst() {
-    return this.array_.reduce((acc, node) => acc && node.isConst(), true);
+  isConst(normalize) {
+    return this.array_.reduce(
+        (acc, node) => acc && node.isConst(normalize), true);
   }
 
   /** @override */
-  calc(context) {
+  calc(context, normalize) {
     const resolvedArray = [];
     for (let i = 0; i < this.array_.length; i++) {
-      const resolved = this.array_[i].resolve(context);
+      const resolved = this.array_[i].resolve(context, normalize);
       if (resolved) {
         resolvedArray.push(resolved);
       } else {
@@ -273,25 +306,42 @@ export class CssNumericNode extends CssNode {
 
   /**
    * @param {number} unusedNum
-   * @return {!CssNumberNode}
+   * @return {!CssNumericNode}
    * @abstract
    */
   createSameUnits(unusedNum) {}
 
+  /** @override */
+  isConst(normalize) {
+    return normalize ? this.isNorm() : true;
+  }
+
+  /**
+   * @return {boolean}
+   */
+  isNorm() {
+    return true;
+  }
+
   /**
    * @param {!CssContext} unusedContext
-   * @return {!CssNumberNode}
+   * @return {!CssNumericNode}
    */
   norm(unusedContext) {
     return this;
   }
 
+  /** @override */
+  calc(context, normalize) {
+    return normalize ? this.norm(context) : this;
+  }
+
   /**
-   * @param {number} percent
+   * @param {number} unusedPercent
    * @param {!CssContext} unusedContext
-   * @return {!CssNumberNode}
+   * @return {!CssNumericNode}
    */
-  calcPercent(percent, unusedContext) {
+  calcPercent(unusedPercent, unusedContext) {
     throw new Error('cannot calculate percent for ' + this.type_);
   }
 }
@@ -310,6 +360,23 @@ export class CssNumberNode extends CssNumericNode {
   createSameUnits(num) {
     return new CssNumberNode(num);
   }
+
+  /**
+   * Returns a numerical value of the node if possible. `Infinity` is one of
+   * possible return values.
+   * @param {!CssNode} node
+   * @return {number|undefined}
+   */
+  static num(node) {
+    if (node instanceof CssNumberNode) {
+      return node.num_;
+    }
+    const css = node.css();
+    if (INFINITY_RE.test(css)) {
+      return Infinity;
+    }
+    return undefined;
+  }
 }
 
 
@@ -325,6 +392,19 @@ export class CssPercentNode extends CssNumericNode {
   /** @override */
   createSameUnits(num) {
     return new CssPercentNode(num);
+  }
+
+  /** @override */
+  isNorm() {
+    return false;
+  }
+
+  /** @override */
+  norm(context) {
+    if (context.getDimension()) {
+      return new CssLengthNode(0, 'px').calcPercent(this.num_, context);
+    }
+    return this;
   }
 }
 
@@ -347,16 +427,21 @@ export class CssLengthNode extends CssNumericNode {
   }
 
   /** @override */
+  isNorm() {
+    return (this.units_ == 'px');
+  }
+
+  /** @override */
   norm(context) {
-    if (this.units_ == 'px') {
+    if (this.isNorm()) {
       return this;
     }
 
     // Font-based: em/rem.
     if (this.units_ == 'em' || this.units_ == 'rem') {
       const fontSize = this.units_ == 'em' ?
-          context.getCurrentFontSize() :
-          context.getRootFontSize();
+        context.getCurrentFontSize() :
+        context.getRootFontSize();
       return new CssLengthNode(this.num_ * fontSize, 'px');
     }
 
@@ -389,10 +474,7 @@ export class CssLengthNode extends CssNumericNode {
   calcPercent(percent, context) {
     const dim = context.getDimension();
     const size = context.getCurrentElementSize();
-    const side =
-        dim == 'w' ? size.width :
-        dim == 'h' ? size.height :
-        0;
+    const side = getDimSide(dim, size);
     return new CssLengthNode(side * percent / 100, 'px');
   }
 }
@@ -416,8 +498,13 @@ export class CssAngleNode extends CssNumericNode {
   }
 
   /** @override */
+  isNorm() {
+    return (this.units_ == 'rad');
+  }
+
+  /** @override */
   norm() {
-    if (this.units_ == 'rad') {
+    if (this.isNorm()) {
       return this;
     }
     if (this.units_ == 'deg') {
@@ -449,14 +536,44 @@ export class CssTimeNode extends CssNumericNode {
   }
 
   /** @override */
+  isNorm() {
+    return (this.units_ == 'ms');
+  }
+
+  /** @override */
   norm() {
-    if (this.units_ == 'ms') {
+    if (this.isNorm()) {
       return this;
     }
+    return new CssTimeNode(this.millis_(), 'ms');
+  }
+
+  /**
+   * @return {number}
+   * @private
+   */
+  millis_() {
+    if (this.units_ == 'ms') {
+      return this.num_;
+    }
     if (this.units_ == 's') {
-      return new CssTimeNode(this.num_ * 1000, 'ms');
+      return this.num_ * 1000;
     }
     throw unknownUnits(this.units_);
+  }
+
+  /**
+   * @param {!CssNode} node
+   * @return {number|undefined}
+   */
+  static millis(node) {
+    if (node instanceof CssTimeNode) {
+      return node.millis_();
+    }
+    if (node instanceof CssNumberNode) {
+      return node.num_;
+    }
+    return undefined;
   }
 }
 
@@ -487,22 +604,22 @@ export class CssFuncNode extends CssNode {
   }
 
   /** @override */
-  isConst() {
-    return this.args_.reduce((acc, node) => acc && node.isConst(), true);
+  isConst(normalize) {
+    return this.args_.reduce(
+        (acc, node) => acc && node.isConst(normalize), true);
   }
 
   /** @override */
-  calc(context) {
+  calc(context, normalize) {
     const resolvedArgs = [];
     for (let i = 0; i < this.args_.length; i++) {
       const node = this.args_[i];
       let resolved;
       if (this.dimensions_ && i < this.dimensions_.length) {
-        context.pushDimension(this.dimensions_[i]);
-        resolved = node.resolve(context);
-        context.popDimension();
+        resolved = context.withDimension(this.dimensions_[i],
+            () => node.resolve(context, normalize));
       } else {
-        resolved = node.resolve(context);
+        resolved = node.resolve(context, normalize);
       }
       if (resolved) {
         resolvedArgs.push(resolved);
@@ -532,12 +649,191 @@ export class CssTranslateNode extends CssFuncNode {
   constructor(suffix, args) {
     super(`translate${suffix.toUpperCase()}`, args,
         suffix == '' ? ['w', 'h'] :
-        suffix == 'x' ? ['w'] :
-        suffix == 'y' ? ['h'] :
-        suffix == 'z' ? ['z'] :
-        suffix == '3d' ? ['w', 'h', 'z'] : null);
+          suffix == 'x' ? ['w'] :
+            suffix == 'y' ? ['h'] :
+              suffix == 'z' ? ['z'] :
+                suffix == '3d' ? ['w', 'h', 'z'] : null);
     /** @const @private {string} */
     this.suffix_ = suffix;
+  }
+}
+
+
+/**
+ * AMP-specific `width()` and `height()` functions.
+ */
+export class CssDimSizeNode extends CssNode {
+  /**
+   * @param {string} dim
+   * @param {?string=} opt_selector
+   * @param {?string=} opt_selectionMethod Either `undefined` or "closest".
+   */
+  constructor(dim, opt_selector, opt_selectionMethod) {
+    super();
+    /** @const @private */
+    this.dim_ = dim;
+    /** @const @private */
+    this.selector_ = opt_selector || null;
+    /** @const @private */
+    this.selectionMethod_ = opt_selectionMethod || null;
+  }
+
+  /** @override */
+  css() {
+    throw noCss();
+  }
+
+  /** @override */
+  isConst() {
+    return false;
+  }
+
+  /** @override */
+  calc(context) {
+    const size =
+        this.selector_ ?
+          context.getElementSize(this.selector_, this.selectionMethod_) :
+          context.getCurrentElementSize();
+    return new CssLengthNode(getDimSide(this.dim_, size), 'px');
+  }
+}
+
+
+/**
+ * AMP-specific `num()` function. Format is `num(value)`. Returns a numeric
+ * representation of the value. E.g. `11px` -> 11, `12em` -> 12, `10s` -> 10.
+ */
+export class CssNumConvertNode extends CssNode {
+  /**
+   * @param {!CssNode} value
+   */
+  constructor(value) {
+    super();
+    /** @const @private */
+    this.value_ = value;
+  }
+
+  /** @override */
+  css() {
+    throw noCss();
+  }
+
+  /** @override */
+  isConst() {
+    return false;
+  }
+
+  /** @override */
+  calc(context, normalize) {
+    const value = this.value_.resolve(context, normalize);
+    if (value == null) {
+      return null;
+    }
+    let num;
+    if (value instanceof CssNumericNode) {
+      num = value.num_;
+    } else {
+      num = parseFloat(value.css());
+    }
+    if (num == null || isNaN(num)) {
+      return null;
+    }
+    return new CssNumberNode(num);
+  }
+}
+
+
+/**
+ * AMP-specific `rand()` function. Has two forms:
+ * - `rand()` - returns a random number value between 0 and 1.
+ * - `rand(left, right)` - returns a random value between `left` and
+ *   `right`. The `left` and `right` are any number-based values in this
+ *   case, such as a length (`10px`), a time (`1s`), an angle (`1rad`), etc.
+ *   The returned value is the same type - a length, time angle, etc. Thus,
+ *   `rand(1s, 5s)` may return a value of `rand(2.1s)`.
+ */
+export class CssRandNode extends CssNode {
+  /**
+   * @param {?CssNode=} left
+   * @param {?CssNode=} right
+   */
+  constructor(left = null, right = null) {
+    super();
+    /** @const @private */
+    this.left_ = left;
+    /** @const @private */
+    this.right_ = right;
+  }
+
+  /** @override */
+  css() {
+    throw noCss();
+  }
+
+  /** @override */
+  isConst() {
+    return false;
+  }
+
+  /** @override */
+  calc(context, normalize) {
+    // No arguments: return a random node between 0 and 1.
+    if (this.left_ == null || this.right_ == null) {
+      return new CssNumberNode(Math.random());
+    }
+
+    // Arguments: do a min/max random math.
+    let left = this.left_.resolve(context, normalize);
+    let right = this.right_.resolve(context, normalize);
+    if (left == null || right == null) {
+      return null;
+    }
+    if (!(left instanceof CssNumericNode) ||
+        !(right instanceof CssNumericNode)) {
+      throw new Error('left and right must be both numerical');
+    }
+    if (left.type_ != right.type_) {
+      throw new Error('left and right must be the same type');
+    }
+
+    // Units are the same, the math is simple: numerals are summed. Otherwise,
+    // the units neeed to be normalized first.
+    if (left.units_ != right.units_) {
+      left = left.norm(context);
+      right = right.norm(context);
+    }
+    const min = Math.min(left.num_, right.num_);
+    const max = Math.max(left.num_, right.num_);
+    const rand = Math.random();
+    // Formula: rand(A, B) = A * (1 - R) + B * R
+    const num = min * (1 - rand) + max * rand;
+    return left.createSameUnits(num);
+  }
+}
+
+
+/**
+ * AMP-specific `index()` function. Returns 0-based index of the current
+ * target in a list of all selected targets.
+ */
+export class CssIndexNode extends CssNode {
+  constructor() {
+    super();
+  }
+
+  /** @override */
+  css() {
+    throw noCss();
+  }
+
+  /** @override */
+  isConst() {
+    return false;
+  }
+
+  /** @override */
+  calc(context) {
+    return new CssNumberNode(context.getCurrentIndex());
   }
 }
 
@@ -570,13 +866,13 @@ export class CssVarNode extends CssNode {
   }
 
   /** @override */
-  calc(context) {
+  calc(context, normalize) {
     const varNode = context.getVar(this.varName_);
     if (varNode) {
-      return varNode.resolve(context);
+      return varNode.resolve(context, normalize);
     }
     if (this.def_) {
-      return this.def_.resolve(context);
+      return this.def_.resolve(context, normalize);
     }
     return null;
   }
@@ -606,8 +902,8 @@ export class CssCalcNode extends CssNode {
   }
 
   /** @override */
-  calc(context) {
-    return this.expr_.resolve(context);
+  calc(context, normalize) {
+    return this.expr_.resolve(context, normalize);
   }
 }
 
@@ -642,7 +938,7 @@ export class CssCalcSumNode extends CssNode {
   }
 
   /** @override */
-  calc(context) {
+  calc(context, normalize) {
     /*
      * From spec:
      * At + or -, check that both sides have the same type, or that one side is
@@ -650,8 +946,8 @@ export class CssCalcSumNode extends CssNode {
      * type, resolve to that type. If one side is a <number> and the other is
      * an <integer>, resolve to <number>.
      */
-    let left = this.left_.resolve(context);
-    let right = this.right_.resolve(context);
+    let left = this.left_.resolve(context, normalize);
+    let right = this.right_.resolve(context, normalize);
     if (left == null || right == null) {
       return null;
     }
@@ -713,9 +1009,9 @@ export class CssCalcProductNode extends CssNode {
   }
 
   /** @override */
-  calc(context) {
-    const left = this.left_.resolve(context);
-    const right = this.right_.resolve(context);
+  calc(context, normalize) {
+    const left = this.left_.resolve(context, normalize);
+    const right = this.right_.resolve(context, normalize);
     if (left == null || right == null) {
       return null;
     }
@@ -769,4 +1065,22 @@ export class CssCalcProductNode extends CssNode {
  */
 function unknownUnits(units) {
   return new Error('unknown units: ' + units);
+}
+
+
+/**
+ * @return {!Error}
+ */
+function noCss() {
+  return new Error('no css');
+}
+
+
+/**
+ * @param {?string} dim
+ * @param {!{width: number, height: number}} size
+ * @return {number}
+ */
+function getDimSide(dim, size) {
+  return (dim == 'w' ? size.width : dim == 'h' ? size.height : 0);
 }

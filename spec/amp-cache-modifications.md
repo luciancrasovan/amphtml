@@ -153,6 +153,7 @@ The AMP Cache rewrites URLs found in the AMP HTML for two purposes. One is to re
 | `<amp-img srcset="https://example.com/bar.png 1080w, https://example.com/bar-400.png 400w">`| `<amp-img src="/i/s/example.com/bar.png 1080w, /i/s/example.com/bar-400.png 400w">` |
 | `<amp-anim src=foo.gif></amp-anim>` | `<amp-anim src=/i/s/example.com/foo.gif></amp-anim>` |
 | `<amp-video poster=bar.png>` | `<amp-video poster=/i/s/example.com/bar.png>` |
+| `<svg class="icon" xmlns:xlink="http://www.w3.org/1999/xlink"><use xlink:href="https://example.com/icon.svg#icon"></use></svg>` | `<svg class=icon xmlns:xlink="http://www.w3.org/1999/xlink"><use xlink:href="/i/s/example.com/icon.svg#icon"></use></svg>` |
 
 </details>
 
@@ -174,6 +175,19 @@ If `<a>` tag does not have attribute `target=_blank` or `target=_top` then add a
 </details>
 
 ### Insert and Rewrite Tags
+
+#### Insert `<link as=script href=https://cdn.ampproject.org/v0.js rel=preload>`
+
+Before the AMP Runtime `script` tag, insert a `link` tag that tells the browser the AMP Runtime `script` tag is high priority despite being an async `script` tag.
+
+<details>
+<summary>example</summary>
+
+| before | after |
+| --- | --- |
+| `<head>`<br>`...`<br>`<script async src=https://cdn.ampproject.org/v0.js></script>`<br>`...`<br>`</head>` | `<head>`<br>`...`<br>`<link as=script href=https://cdn.ampproject.org/v0.js rel=preload>`<br>`<script async src=https://cdn.ampproject.org/v0.js></script>`<br>`...`<br>`</head>` |
+
+</details>
 
 #### Insert `<link rel=icon>`
 
@@ -275,6 +289,7 @@ Any `<link>` tag present with attribute `rel` equal to any of the following:
 
 *Condition*:
 Remove any `<meta>` tags except for those that:
+ - have attribute `charset`
  - do not have attributes `content`, `itemprop`, `name` and `property`
  - have attribute `http-equiv`
  - have attribute `name` with case-insensitive prefix `amp-`
@@ -336,7 +351,7 @@ If possible, rewrite to use the stable version. Otherwise use the unversioned pa
 
 </details>
 
-#### Insert `<link href=https://fonts.gstatic.com rel="dns-prefetch preconnect">`
+#### Insert `<link href=https://fonts.gstatic.com rel="dns-prefetch preconnect" crossorigin>`
 The AMP Cache adds prefetch hint tags for browsers to assist in loading resources earlier and thus speed up page loads.
 
 *Condition*:
@@ -347,7 +362,7 @@ Has a stylesheet of the form: `<link href=https://fonts.googleapis.com/... rel=s
 
 | before | after |
 | --- | --- |
-| `<head>`<br>`...`<br>`<link href=https://fonts.googleapis.com/css?family=Lato rel=stylesheet>`<br>`...`<br>`</head>` | `<head>`<br>`...`<br>`<link href=https://fonts.googleapis.com/css?family=Lato rel=stylesheet>`<br>`<link href=https://fonts.gstatic.com rel="dns-prefetch preconnect">`<br>`...`<br>`</head>` |
+| `<head>`<br>`...`<br>`<link href=https://fonts.googleapis.com/css?family=Lato rel=stylesheet>`<br>`...`<br>`</head>` | `<head>`<br>`...`<br>`<link href=https://fonts.googleapis.com/css?family=Lato rel=stylesheet>`<br>`<link href=https://fonts.gstatic.com rel="dns-prefetch preconnect" crossorigin>`<br>`...`<br>`</head>` |
 
 </details>
 

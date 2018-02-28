@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
+import {VariableSource} from '../../src/service/variable-source';
 import {
   installUrlReplacementsForEmbed,
 } from '../../src/service/url-replacements-impl';
-import {VariableSource} from '../../src/service/variable-source';
 
 describes.realWin('amp-pixel', {amp: true}, env => {
   let win;
@@ -31,7 +31,8 @@ describes.realWin('amp-pixel', {amp: true}, env => {
     whenFirstVisiblePromise = new Promise(resolve => {
       whenFirstVisibleResolver = resolve;
     });
-    sandbox.stub(viewer, 'whenFirstVisible', () => whenFirstVisiblePromise);
+    sandbox.stub(viewer, 'whenFirstVisible').callsFake(
+        () => whenFirstVisiblePromise);
     createPixel('https://pubads.g.doubleclick.net/activity;dc_iu=1/abc;ord=1?');
   });
 
@@ -42,8 +43,9 @@ describes.realWin('amp-pixel', {amp: true}, env => {
       pixel.setAttribute('referrerpolicy', referrerPolicy);
     }
     win.document.body.appendChild(pixel);
-    pixel.build();
+    const buildPromise = pixel.build();
     implementation = pixel.implementation_;
+    return buildPromise;
   }
 
   /**
@@ -115,7 +117,7 @@ describes.realWin('amp-pixel', {amp: true}, env => {
   });
 
   it('should replace URL parameters', () => {
-    sandbox.stub(Math, 'random', () => 111);
+    sandbox.stub(Math, 'random').callsFake(() => 111);
     const url = 'https://pubads.g.doubleclick.net/activity;r=RANDOM';
     return trigger(url).then(img => {
       expect(img.src).to.equal(
@@ -125,11 +127,14 @@ describes.realWin('amp-pixel', {amp: true}, env => {
 
   it('should throw for referrerpolicy with value other than ' +
       'no-referrer', () => {
-    expect(() => {
-      createPixel(
-          'https://pubads.g.doubleclick.net/activity;dc_iu=1/abc;ord=1?',
-          'origin');
-    }).to.throw(/referrerpolicy/);
+    return createPixel(
+        'https://pubads.g.doubleclick.net/activity;dc_iu=1/abc;ord=1?',
+        'origin')
+        .then(() => {
+          throw new Error('must have failed.');
+        }, reason => {
+          expect(reason.message).to.match(/referrerpolicy/);
+        });
   });
 });
 
@@ -162,7 +167,8 @@ describes.realWin('amp-pixel in embed', {
     whenFirstVisiblePromise = new Promise(resolve => {
       whenFirstVisibleResolver = resolve;
     });
-    sandbox.stub(viewer, 'whenFirstVisible', () => whenFirstVisiblePromise);
+    sandbox.stub(viewer, 'whenFirstVisible').callsFake(
+        () => whenFirstVisiblePromise);
 
     installUrlReplacementsForEmbed(env.ampdoc, win, new TestVariableSource());
 

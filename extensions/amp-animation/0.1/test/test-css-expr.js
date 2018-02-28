@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {parseCss} from '../css-expr';
 import * as ast from '../css-expr-ast';
+import {parseCss} from '../css-expr';
 
 
 describe('CSS parse', () => {
@@ -55,6 +55,21 @@ describe('CSS parse', () => {
       return 'TRANSLATE' +
           `${n.suffix_ ? '-' + n.suffix_.toUpperCase() : ''}` +
           `<${pseudoArray(n.args_)}>`;
+    }
+    if (n instanceof ast.CssDimSizeNode) {
+      return `DIM<${n.dim_}` +
+          `, ${n.selector_ ? '"' + n.selector_ + '"' : null}` +
+          `, ${n.selectionMethod_}>`;
+    }
+    if (n instanceof ast.CssNumConvertNode) {
+      return `NUMC<${n.value_ ? pseudo(n.value_) : null}>`;
+    }
+    if (n instanceof ast.CssRandNode) {
+      return `RAND<${n.left_ ? pseudo(n.left_) : null}` +
+          `, ${n.right_ ? pseudo(n.right_) : null}>`;
+    }
+    if (n instanceof ast.CssIndexNode) {
+      return 'INDEX<>';
     }
     if (n instanceof ast.CssVarNode) {
       return `VAR<${n.varName_}${n.def_ ? ', ' + pseudo(n.def_) : ''}>`;
@@ -240,8 +255,77 @@ describe('CSS parse', () => {
         .to.equal('CON<A, B>');
   });
 
+  it('should parse a dimension function', () => {
+    // Current.
+    expect(parsePseudo('width()'))
+        .to.equal('DIM<w, null, null>');
+    expect(parsePseudo('height()'))
+        .to.equal('DIM<h, null, null>');
+
+    // Query.
+    expect(parsePseudo('width(".sel")'))
+        .to.equal('DIM<w, ".sel", null>');
+    expect(parsePseudo('WIDTH(".sel > div")'))
+        .to.equal('DIM<w, ".sel > div", null>');
+    expect(parsePseudo('height(".sel")'))
+        .to.equal('DIM<h, ".sel", null>');
+
+    // Closest.
+    expect(parsePseudo('width(closest(".sel"))'))
+        .to.equal('DIM<w, ".sel", closest>');
+    expect(parsePseudo('height(closest(".sel"))'))
+        .to.equal('DIM<h, ".sel", closest>');
+  });
+
+  it('should parse a num-convert function', () => {
+    expect(parsePseudo('num(10)'))
+        .to.equal('NUMC<NUM<10>>');
+    expect(parsePseudo('num(10px)'))
+        .to.equal('NUMC<LEN<10 PX>>');
+    expect(parsePseudo('num(10em)'))
+        .to.equal('NUMC<LEN<10 EM>>');
+    expect(parsePseudo('num(10s)'))
+        .to.equal('NUMC<TME<10 S>>');
+    expect(parsePseudo('num(10rad)'))
+        .to.equal('NUMC<ANG<10 RAD>>');
+    expect(parsePseudo('num(10%)'))
+        .to.equal('NUMC<PRC<10>>');
+    expect(parsePseudo('num(var(--x))'))
+        .to.equal('NUMC<VAR<--x>>');
+  });
+
+  it('should parse a rand function', () => {
+    expect(parsePseudo('rand()'))
+        .to.equal('RAND<null, null>');
+    expect(parsePseudo('rand(10, 20)'))
+        .to.equal('RAND<NUM<10>, NUM<20>>');
+    expect(parsePseudo('rand(10px, 20px)'))
+        .to.equal('RAND<LEN<10 PX>, LEN<20 PX>>');
+    expect(parsePseudo('rand(10em, 20em)'))
+        .to.equal('RAND<LEN<10 EM>, LEN<20 EM>>');
+    expect(parsePseudo('rand(10px, 20em)'))
+        .to.equal('RAND<LEN<10 PX>, LEN<20 EM>>');
+    expect(parsePseudo('rand(10s, 20s)'))
+        .to.equal('RAND<TME<10 S>, TME<20 S>>');
+    expect(parsePseudo('rand(10rad, 20rad)'))
+        .to.equal('RAND<ANG<10 RAD>, ANG<20 RAD>>');
+    expect(parsePseudo('rand(10%, 20%)'))
+        .to.equal('RAND<PRC<10>, PRC<20>>');
+    expect(parsePseudo('rand(var(--x), var(--y))'))
+        .to.equal('RAND<VAR<--x>, VAR<--y>>');
+    expect(parsePseudo('rand(10px, var(--y))'))
+        .to.equal('RAND<LEN<10 PX>, VAR<--y>>');
+  });
+
+  it('should parse an index function', () => {
+    expect(parsePseudo('index()')).to.equal('INDEX<>');
+    expect(parsePseudo('INDEX()')).to.equal('INDEX<>');
+  });
+
   it('should parse a var()', () => {
     expect(parsePseudo('var(--abc)')).to.equal('VAR<--abc>');
+    expect(parsePseudo('var(--abc1)')).to.equal('VAR<--abc1>');
+    expect(parsePseudo('var(--abc-d)')).to.equal('VAR<--abc-d>');
     expect(parsePseudo('VAR(--abc)')).to.equal('VAR<--abc>');
     expect(parsePseudo('var(--ABC)')).to.equal('VAR<--ABC>');
     expect(parsePseudo('var(--abc, 100px)'))
@@ -308,6 +392,7 @@ describe('CSS parse', () => {
 
 
 describes.sandboxed('CSS resolve', {}, () => {
+  const normalize = true;
   let context;
   let contextMock;
 
@@ -320,8 +405,8 @@ describes.sandboxed('CSS resolve', {}, () => {
     contextMock.verify();
   });
 
-  function resolvedCss(node) {
-    const resolved = node.resolve(context);
+  function resolvedCss(node, opt_normalize) {
+    const resolved = node.resolve(context, opt_normalize);
     return resolved ? resolved.css() : null;
   }
 
@@ -352,76 +437,125 @@ describes.sandboxed('CSS resolve', {}, () => {
   });
 
   it('should resolve a const concat node', () => {
+    expect(ast.isVarCss('css1 css2', false)).to.be.false;
+    expect(ast.isVarCss('css1 10px', false)).to.be.false;
+    expect(ast.isVarCss('css1 10em', false)).to.be.false;
+    expect(ast.isVarCss('css1 css2', normalize)).to.be.false;
+    expect(ast.isVarCss('css1 10px', normalize)).to.be.false;
+    expect(ast.isVarCss('css1 10em', normalize)).to.be.true;
+    expect(ast.isVarCss('css1 10EM', normalize)).to.be.true;
     const node = new ast.CssConcatNode([
       new ast.CssPassthroughNode('css1'),
       new ast.CssPassthroughNode('css2'),
     ]);
     expect(node.isConst()).to.be.true;
+    expect(node.isConst(normalize)).to.be.true;
     expect(node.resolve(context)).to.equal(node);
+    expect(node.resolve(context, normalize)).to.equal(node);
     expect(node.css()).to.equal('css1 css2');
     expect(resolvedCss(node)).to.equal('css1 css2');
+    expect(resolvedCss(node, normalize)).to.equal('css1 css2');
   });
 
   it('should resolve a var concat node', () => {
+    expect(ast.isVarCss('var(--x)', false)).to.be.true;
+    expect(ast.isVarCss('var(--x) css2', false)).to.be.true;
+    expect(ast.isVarCss('VAR(--x)', false)).to.be.true;
+    expect(ast.isVarCss('Var(--x)', false)).to.be.true;
+    expect(ast.isVarCss('var(--x)', normalize)).to.be.true;
     contextMock.expects('getVar')
         .withExactArgs('--var1')
         .returns(new ast.CssPassthroughNode('val1'))
-        .once();
+        .twice();
     const node = new ast.CssConcatNode([
       new ast.CssPassthroughNode('css1'),
       new ast.CssVarNode('--var1'),
     ]);
     expect(node.isConst()).to.be.false;
+    expect(node.isConst(normalize)).to.be.false;
     expect(node.css()).to.equal('css1 var(--var1)');
     expect(resolvedCss(node)).to.equal('css1 val1');
+    expect(resolvedCss(node, normalize)).to.equal('css1 val1');
   });
 
   it('should resolve a null concat node', () => {
     contextMock.expects('getVar')
         .withExactArgs('--var1')
         .returns(null)
-        .once();
+        .twice();
     const node = new ast.CssConcatNode([
       new ast.CssPassthroughNode('css1'),
       new ast.CssVarNode('--var1'),
     ]);
     expect(node.isConst()).to.be.false;
+    expect(node.isConst(normalize)).to.be.false;
     expect(node.css()).to.equal('css1 var(--var1)');
     expect(resolvedCss(node)).to.be.null;
+    expect(resolvedCss(node, normalize)).to.be.null;
   });
 
   it('should resolve a number node', () => {
+    expect(ast.isVarCss('11.5', false)).to.be.false;
+    expect(ast.isVarCss('11.5', normalize)).to.be.false;
     const node = new ast.CssNumberNode(11.5);
     expect(node.isConst()).to.be.true;
+    expect(node.isConst(normalize)).to.be.true;
     expect(node.css()).to.equal('11.5');
     expect(resolvedCss(node)).to.equal('11.5');
+    expect(resolvedCss(node, normalize)).to.equal('11.5');
     expect(node.createSameUnits(20.5).css()).to.equal('20.5');
   });
 
-  it('should resolve a percent node', () => {
+  it('should resolve a percent node w/o dimension', () => {
+    expect(ast.isVarCss('11.5%', false)).to.be.false;
+    expect(ast.isVarCss('11.5%', normalize)).to.be.true;
     const node = new ast.CssPercentNode(11.5);
     expect(node.isConst()).to.be.true;
+    expect(node.isConst(normalize)).to.be.false;
     expect(node.css()).to.equal('11.5%');
     expect(resolvedCss(node)).to.equal('11.5%');
+    expect(resolvedCss(node, normalize)).to.equal('11.5%');
+    expect(node.createSameUnits(20.5).css()).to.equal('20.5%');
+  });
+
+  it('should resolve a percent node w/dimension', () => {
+    contextMock.expects('getDimension').returns('w').twice();
+    contextMock.expects('getCurrentElementSize')
+        .returns({width: 110, height: 220});
+    expect(ast.isVarCss('11.5%', false)).to.be.false;
+    const node = new ast.CssPercentNode(11.5);
+    expect(node.isConst()).to.be.true;
+    expect(node.isConst(normalize)).to.be.false;
+    expect(node.css()).to.equal('11.5%');
+    expect(resolvedCss(node)).to.equal('11.5%');
+    expect(resolvedCss(node, normalize)).to.equal('12.65px');
     expect(node.createSameUnits(20.5).css()).to.equal('20.5%');
   });
 
   describe('url', () => {
+    it('should always consider as non-const', () => {
+      expect(ast.isVarCss('url("https://acme.org")', false)).to.be.true;
+      expect(ast.isVarCss('url("https://acme.org")', normalize)).to.be.true;
+    });
+
     it('should resolve an absolute HTTPS URL', () => {
       const node = new ast.CssUrlNode('https://acme.org/img');
       expect(node.isConst()).to.be.true;
+      expect(node.isConst(normalize)).to.be.true;
       expect(node.css()).to.equal('url("https://acme.org/img")');
     });
 
     it('should resolve an data URL', () => {
       const node = new ast.CssUrlNode('data:abc');
       expect(node.isConst()).to.be.true;
+      expect(node.isConst(normalize)).to.be.true;
       expect(node.css()).to.equal('url("data:abc")');
     });
 
     it('should resolve an empty URL', () => {
       const node = new ast.CssUrlNode('');
       expect(node.isConst()).to.be.true;
+      expect(node.isConst(normalize)).to.be.true;
       expect(node.css()).to.equal('');
     });
 
@@ -430,11 +564,13 @@ describes.sandboxed('CSS resolve', {}, () => {
           .expects('resolveUrl')
           .withExactArgs('http://acme.org/non-secure')
           .returns('broken')
-          .once();
+          .twice();
       const node = new ast.CssUrlNode('http://acme.org/non-secure');
       expect(node.isConst()).to.be.false;
+      expect(node.isConst(normalize)).to.be.false;
       expect(node.css()).to.equal('url("http://acme.org/non-secure")');
       expect(node.calc(context).css()).to.equal('url("broken")');
+      expect(node.calc(context, normalize).css()).to.equal('url("broken")');
     });
 
     it('should re-resolve a relative url', () => {
@@ -442,11 +578,14 @@ describes.sandboxed('CSS resolve', {}, () => {
           .expects('resolveUrl')
           .withExactArgs('/relative')
           .returns('https://acme.org/relative')
-          .once();
+          .twice();
       const node = new ast.CssUrlNode('/relative');
       expect(node.isConst()).to.be.false;
+      expect(node.isConst(normalize)).to.be.false;
       expect(node.css()).to.equal('url("/relative")');
       expect(node.calc(context).css())
+          .to.equal('url("https://acme.org/relative")');
+      expect(node.calc(context, normalize).css())
           .to.equal('url("https://acme.org/relative")');
     });
 
@@ -464,11 +603,27 @@ describes.sandboxed('CSS resolve', {}, () => {
   });
 
   describe('length', () => {
+    it('should always consider as const', () => {
+      expect(ast.isVarCss('11.5px', false)).to.be.false;
+      expect(ast.isVarCss('11.5em', false)).to.be.false;
+
+      expect(ast.isVarCss('11.5px', normalize)).to.be.false;
+      expect(ast.isVarCss('11.5em', normalize)).to.be.true;
+      expect(ast.isVarCss('11.5rem', normalize)).to.be.true;
+      expect(ast.isVarCss('11.5vh', normalize)).to.be.true;
+      expect(ast.isVarCss('11.5vw', normalize)).to.be.true;
+      expect(ast.isVarCss('11.5vmin', normalize)).to.be.true;
+      expect(ast.isVarCss('11.5vmax', normalize)).to.be.true;
+      expect(ast.isVarCss('11.5EM', normalize)).to.be.true;
+    });
+
     it('should resolve a px-length node', () => {
       const node = new ast.CssLengthNode(11.5, 'px');
       expect(node.isConst()).to.be.true;
+      expect(node.isConst(normalize)).to.be.true;
       expect(node.css()).to.equal('11.5px');
       expect(resolvedCss(node)).to.equal('11.5px');
+      expect(resolvedCss(node, normalize)).to.equal('11.5px');
       expect(node.createSameUnits(20.5).css()).to.equal('20.5px');
       expect(node.norm()).to.equal(node);
       expect(node.norm().css()).to.equal('11.5px');
@@ -481,10 +636,12 @@ describes.sandboxed('CSS resolve', {}, () => {
       expect(resolvedCss(node)).to.equal('11.5em');
       expect(node.createSameUnits(20.5).css()).to.equal('20.5em');
 
-      contextMock.expects('getCurrentFontSize').returns(10).once();
+      contextMock.expects('getCurrentFontSize').returns(10).twice();
       const norm = node.norm(context);
       expect(norm).to.not.equal(node);
       expect(norm.css()).to.equal('115px');
+      expect(node.isConst(normalize)).to.be.false;
+      expect(resolvedCss(node, normalize)).to.equal('115px');
     });
 
     it('should resolve a rem-length node', () => {
@@ -494,17 +651,19 @@ describes.sandboxed('CSS resolve', {}, () => {
       expect(resolvedCss(node)).to.equal('11.5rem');
       expect(node.createSameUnits(20.5).css()).to.equal('20.5rem');
 
-      contextMock.expects('getRootFontSize').returns(2).once();
+      contextMock.expects('getRootFontSize').returns(2).twice();
       const norm = node.norm(context);
       expect(norm).to.not.equal(node);
       expect(norm.css()).to.equal('23px');
+      expect(node.isConst(normalize)).to.be.false;
+      expect(resolvedCss(node, normalize)).to.equal('23px');
     });
 
     describe('vw-length', () => {
       beforeEach(() => {
         contextMock.expects('getViewportSize')
             .returns({width: 200, height: 400})
-            .once();
+            .atLeast(1);
       });
 
       it('should resolve a vw-length node', () => {
@@ -514,6 +673,8 @@ describes.sandboxed('CSS resolve', {}, () => {
         expect(resolvedCss(node)).to.equal('11.5vw');
         expect(node.createSameUnits(20.5).css()).to.equal('20.5vw');
         expect(node.norm(context).css()).to.equal('23px');
+        expect(node.isConst(normalize)).to.be.false;
+        expect(resolvedCss(node, normalize)).to.equal('23px');
       });
 
       it('should resolve a vh-length node', () => {
@@ -523,6 +684,8 @@ describes.sandboxed('CSS resolve', {}, () => {
         expect(resolvedCss(node)).to.equal('11.5vh');
         expect(node.createSameUnits(20.5).css()).to.equal('20.5vh');
         expect(node.norm(context).css()).to.equal('46px');
+        expect(node.isConst(normalize)).to.be.false;
+        expect(resolvedCss(node, normalize)).to.equal('46px');
       });
 
       it('should resolve a vmin-length node', () => {
@@ -532,6 +695,8 @@ describes.sandboxed('CSS resolve', {}, () => {
         expect(resolvedCss(node)).to.equal('11.5vmin');
         expect(node.createSameUnits(20.5).css()).to.equal('20.5vmin');
         expect(node.norm(context).css()).to.equal('23px');
+        expect(node.isConst(normalize)).to.be.false;
+        expect(resolvedCss(node, normalize)).to.equal('23px');
       });
 
       it('should resolve a vmax-length node', () => {
@@ -541,6 +706,8 @@ describes.sandboxed('CSS resolve', {}, () => {
         expect(resolvedCss(node)).to.equal('11.5vmax');
         expect(node.createSameUnits(20.5).css()).to.equal('20.5vmax');
         expect(node.norm(context).css()).to.equal('46px');
+        expect(node.isConst(normalize)).to.be.false;
+        expect(resolvedCss(node, normalize)).to.equal('46px');
       });
     });
 
@@ -593,6 +760,16 @@ describes.sandboxed('CSS resolve', {}, () => {
   });
 
   describe('angle', () => {
+    it('should always consider as const', () => {
+      expect(ast.isVarCss('11.5rad', false)).to.be.false;
+      expect(ast.isVarCss('11.5deg', false)).to.be.false;
+      expect(ast.isVarCss('11.5grad', false)).to.be.false;
+
+      expect(ast.isVarCss('11.5rad', normalize)).to.be.false;
+      expect(ast.isVarCss('11.5deg', normalize)).to.be.true;
+      expect(ast.isVarCss('11.5grad', normalize)).to.be.true;
+    });
+
     it('should resolve a rad-angle node', () => {
       const node = new ast.CssAngleNode(11.5, 'rad');
       expect(node.isConst()).to.be.true;
@@ -601,6 +778,8 @@ describes.sandboxed('CSS resolve', {}, () => {
       expect(node.createSameUnits(20.5).css()).to.equal('20.5rad');
       expect(node.norm()).to.equal(node);
       expect(node.norm().css()).to.equal('11.5rad');
+      expect(node.isConst(normalize)).to.be.true;
+      expect(resolvedCss(node, normalize)).to.equal('11.5rad');
     });
 
     it('should resolve a deg-length node', () => {
@@ -614,6 +793,9 @@ describes.sandboxed('CSS resolve', {}, () => {
       expect(norm).to.not.equal(node);
       expect(norm.css()).to.match(/[\d\.]*rad/);
       expect(norm.num_).to.closeTo(0.2007, 1e-4);
+      expect(node.isConst(normalize)).to.be.false;
+      expect(node.calc(context, normalize).units_).to.equal('rad');
+      expect(node.calc(context, normalize).num_).to.closeTo(0.2007, 1e-4);
     });
 
     it('should resolve a grad-length node', () => {
@@ -627,10 +809,21 @@ describes.sandboxed('CSS resolve', {}, () => {
       expect(norm).to.not.equal(node);
       expect(norm.css()).to.match(/[\d\.]*rad/);
       expect(norm.num_).to.closeTo(0.1806, 1e-4);
+      expect(node.isConst(normalize)).to.be.false;
+      expect(node.calc(context, normalize).units_).to.equal('rad');
+      expect(node.calc(context, normalize).num_).to.closeTo(0.1806, 1e-4);
     });
   });
 
   describe('time', () => {
+    it('should always consider as const', () => {
+      expect(ast.isVarCss('11.5ms', false)).to.be.false;
+      expect(ast.isVarCss('11.5s', false)).to.be.false;
+
+      expect(ast.isVarCss('11.5ms', normalize)).to.be.false;
+      expect(ast.isVarCss('11.5s', normalize)).to.be.true;
+    });
+
     it('should resolve a milliseconds node', () => {
       const node = new ast.CssTimeNode(11.5, 'ms');
       expect(node.isConst()).to.be.true;
@@ -639,6 +832,8 @@ describes.sandboxed('CSS resolve', {}, () => {
       expect(node.createSameUnits(20.5).css()).to.equal('20.5ms');
       expect(node.norm()).to.equal(node);
       expect(node.norm().css()).to.equal('11.5ms');
+      expect(node.isConst(normalize)).to.be.true;
+      expect(resolvedCss(node, normalize)).to.equal('11.5ms');
     });
 
     it('should resolve a seconds node', () => {
@@ -651,13 +846,14 @@ describes.sandboxed('CSS resolve', {}, () => {
       const norm = node.norm(context);
       expect(norm).to.not.equal(node);
       expect(norm.css()).to.equal('11500ms');
+      expect(node.isConst(normalize)).to.be.false;
+      expect(resolvedCss(node, normalize)).to.equal('11500ms');
     });
   });
 
   describe('function', () => {
     it('should resolve a const-arg function', () => {
-      contextMock.expects('pushDimension').never();
-      contextMock.expects('popDimension').never();
+      contextMock.expects('withDimension').never();
       const node = new ast.CssFuncNode('rgb', [
         new ast.CssNumberNode(201),
         new ast.CssNumberNode(202),
@@ -667,15 +863,16 @@ describes.sandboxed('CSS resolve', {}, () => {
       expect(node.css()).to.equal('rgb(201,202,203)');
       expect(resolvedCss(node)).to.equal('rgb(201,202,203)');
       expect(node.resolve(context)).to.equal(node);
+      expect(node.isConst(normalize)).to.be.true;
+      expect(resolvedCss(node, normalize)).to.equal('rgb(201,202,203)');
     });
 
     it('should resolve a var-arg function', () => {
-      contextMock.expects('pushDimension').never();
-      contextMock.expects('popDimension').never();
+      contextMock.expects('withDimension').never();
       contextMock.expects('getVar')
           .withExactArgs('--var1')
           .returns(new ast.CssNumberNode(11))
-          .once();
+          .twice();
       const node = new ast.CssFuncNode('rgb', [
         new ast.CssNumberNode(201),
         new ast.CssNumberNode(202),
@@ -684,16 +881,35 @@ describes.sandboxed('CSS resolve', {}, () => {
       expect(node.isConst()).to.be.false;
       expect(node.css()).to.equal('rgb(201,202,var(--var1))');
       expect(resolvedCss(node)).to.equal('rgb(201,202,11)');
+      expect(node.isConst(normalize)).to.be.false;
+      expect(resolvedCss(node, normalize)).to.equal('rgb(201,202,11)');
+    });
+
+    it('should norm function', () => {
+      contextMock.expects('getDimension').returns('w').atLeast(1);
+      contextMock.expects('getCurrentFontSize').returns(10).atLeast(1);
+      contextMock.expects('getCurrentElementSize')
+          .returns({width: 110, height: 220}).atLeast(1);
+      const node = new ast.CssFuncNode('xyz', [
+        new ast.CssLengthNode(11, 'px'),
+        new ast.CssLengthNode(11.5, 'em'),
+        new ast.CssPercentNode(11.5),
+      ]);
+      expect(node.isConst()).to.be.true;
+      expect(node.css()).to.equal('xyz(11px,11.5em,11.5%)');
+      expect(resolvedCss(node)).to.equal('xyz(11px,11.5em,11.5%)');
+      expect(node.isConst(normalize)).to.be.false;
+      expect(resolvedCss(node, normalize)).to.equal('xyz(11px,115px,12.65px)');
     });
 
     it('should push a dimension when specified', () => {
       let index = 0;
       const stack = [];
-      context.pushDimension = function(dim) {
+      context.withDimension = function(dim, callback) {
         stack.push(dim);
-      };
-      context.popDimension = function() {
+        const res = callback();
         stack.pop();
+        return res;
       };
 
       const arg1 = new ast.CssNumberNode(201);
@@ -730,7 +946,7 @@ describes.sandboxed('CSS resolve', {}, () => {
       contextMock.expects('getVar')
           .withExactArgs('--var1')
           .returns(null)
-          .once();
+          .atLeast(1);
       const node = new ast.CssFuncNode('rgb', [
         new ast.CssNumberNode(201),
         new ast.CssNumberNode(202),
@@ -739,6 +955,8 @@ describes.sandboxed('CSS resolve', {}, () => {
       expect(node.isConst()).to.be.false;
       expect(node.css()).to.equal('rgb(201,202,var(--var1))');
       expect(resolvedCss(node)).to.be.null;
+      expect(node.isConst(normalize)).to.be.false;
+      expect(resolvedCss(node, normalize)).to.be.null;
     });
   });
 
@@ -747,15 +965,28 @@ describes.sandboxed('CSS resolve', {}, () => {
 
     beforeEach(() => {
       dimStack = [];
-      context.pushDimension = function(dim) {
+      context.withDimension = function(dim, callback) {
         dimStack.push(dim);
-      };
-      context.popDimension = function() {
+        const res = callback();
         dimStack.pop();
+        return res;
       };
-      sandbox.stub(ast.CssPassthroughNode.prototype, 'resolve', function() {
-        return new ast.CssPassthroughNode(this.css_ + dimStack.join(''));
-      });
+      sandbox.stub(ast.CssPassthroughNode.prototype, 'resolve').callsFake(
+          function() {
+            return new ast.CssPassthroughNode(this.css_ + dimStack.join(''));
+          });
+    });
+
+    it('should always consider as const', () => {
+      expect(ast.isVarCss('translate(10px)', false)).to.be.false;
+      expect(ast.isVarCss('translateX(10px)', false)).to.be.false;
+      expect(ast.isVarCss('translateY(10px)', false)).to.be.false;
+      expect(ast.isVarCss('translate3d(10px)', false)).to.be.false;
+
+      expect(ast.isVarCss('translate(10px)', normalize)).to.be.false;
+      expect(ast.isVarCss('translate(10%)', normalize)).to.be.true;
+      expect(ast.isVarCss('translate(10em)', normalize)).to.be.true;
+      expect(ast.isVarCss('translate(10EM)', normalize)).to.be.true;
     });
 
     it('should resolve 2d translate', () => {
@@ -763,7 +994,10 @@ describes.sandboxed('CSS resolve', {}, () => {
         new ast.CssPassthroughNode('X'),
         new ast.CssPassthroughNode('Y'),
       ]);
+      expect(node.isConst()).to.be.true;
       expect(node.calc(context).css()).to.equal('translate(Xw,Yh)');
+      expect(node.isConst(normalize)).to.be.true;
+      expect(node.calc(context, normalize).css()).to.equal('translate(Xw,Yh)');
     });
 
     it('should resolve abbreviated 2d translate', () => {
@@ -812,11 +1046,319 @@ describes.sandboxed('CSS resolve', {}, () => {
         new ast.CssPassthroughNode('X'),
         new ast.CssVarNode('--var1'),
       ]);
+      expect(node.isConst()).to.be.false;
+      expect(node.isConst(normalize)).to.be.false;
       expect(node.calc(context)).to.be.null;
     });
   });
 
+  describe('dimension', () => {
+    let sizes;
+
+    beforeEach(() => {
+      sizes = {
+        'null(.class)': {width: 111, height: 222},
+        'closest(.class > div)': {width: 112, height: 224},
+      };
+      context.getCurrentElementSize = function() {
+        return {width: 110, height: 220};
+      };
+      context.getElementSize = function(selector, selectionMethod) {
+        return sizes[`${selectionMethod}(${selector})`];
+      };
+    });
+
+    it('should always consider as non-const', () => {
+      expect(ast.isVarCss('width()', false)).to.be.true;
+      expect(ast.isVarCss('height()', false)).to.be.true;
+      expect(ast.isVarCss('width("")')).to.be.true;
+      expect(ast.isVarCss('height("")')).to.be.true;
+    });
+
+    it('should be always a non-const and no css', () => {
+      const node = new ast.CssDimSizeNode('?');
+      expect(node.isConst()).to.be.false;
+      expect(() => node.css()).to.throw(/no css/);
+    });
+
+    it('should resolve width on the current node', () => {
+      const node = new ast.CssDimSizeNode('w');
+      expect(node.calc(context).css()).to.equal('110px');
+    });
+
+    it('should resolve height on the current node', () => {
+      const node = new ast.CssDimSizeNode('h');
+      expect(node.calc(context).css()).to.equal('220px');
+    });
+
+    it('should resolve width on the selected node', () => {
+      const node = new ast.CssDimSizeNode('w', '.class');
+      expect(node.calc(context).css()).to.equal('111px');
+    });
+
+    it('should resolve height on the selected node', () => {
+      const node = new ast.CssDimSizeNode('h', '.class');
+      expect(node.calc(context).css()).to.equal('222px');
+    });
+
+    it('should resolve width on the selected closest node', () => {
+      const node = new ast.CssDimSizeNode('w', '.class > div', 'closest');
+      expect(node.calc(context).css()).to.equal('112px');
+    });
+
+    it('should resolve height on the selected closest node', () => {
+      const node = new ast.CssDimSizeNode('h', '.class > div', 'closest');
+      expect(node.calc(context).css()).to.equal('224px');
+    });
+  });
+
+  describe('num-convert', () => {
+    it('should always consider as non-const', () => {
+      expect(ast.isVarCss('num(10px)')).to.be.true;
+      expect(ast.isVarCss('num(10em)', normalize)).to.be.true;
+    });
+
+    it('should always be a non-const and no css', () => {
+      const node = new ast.CssNumConvertNode();
+      expect(node.isConst()).to.equal(false);
+      expect(() => node.css()).to.throw(/no css/);
+    });
+
+    it('should resolve num from a number', () => {
+      const node = new ast.CssNumConvertNode(
+          new ast.CssNumberNode(10));
+      expect(resolvedCss(node)).to.equal('10');
+    });
+
+    it('should resolve num from a zero', () => {
+      const node = new ast.CssNumConvertNode(
+          new ast.CssNumberNode(0));
+      expect(resolvedCss(node)).to.equal('0');
+    });
+
+    it('should resolve num from a length', () => {
+      const node = new ast.CssNumConvertNode(
+          new ast.CssLengthNode(10, 'px'));
+      expect(resolvedCss(node)).to.equal('10');
+    });
+
+    it('should resolve num from a zero length', () => {
+      const node = new ast.CssNumConvertNode(
+          new ast.CssLengthNode(0, 'px'));
+      expect(resolvedCss(node)).to.equal('0');
+    });
+
+    it('should resolve num from a time', () => {
+      const node = new ast.CssNumConvertNode(
+          new ast.CssTimeNode(10, 's'));
+      expect(resolvedCss(node)).to.equal('10');
+      expect(resolvedCss(node, normalize)).to.equal('10000');
+    });
+
+    it('should resolve num from a percent', () => {
+      const node = new ast.CssNumConvertNode(
+          new ast.CssPercentNode(10));
+      expect(resolvedCss(node)).to.equal('10');
+
+      contextMock.expects('getDimension').returns('w').atLeast(1);
+      contextMock.expects('getCurrentElementSize')
+          .returns({width: 110, height: 220}).atLeast(1);
+      expect(resolvedCss(node, normalize)).to.equal('11');
+    });
+
+    it('should resolve num from an expression', () => {
+      contextMock.expects('getVar')
+          .withExactArgs('--var1')
+          .returns(new ast.CssLengthNode(100, 'px'))
+          .once();
+      const node = new ast.CssNumConvertNode(
+          new ast.CssVarNode('--var1'));
+      expect(resolvedCss(node)).to.equal('100');
+    });
+
+    it('should resolve num with a null arg', () => {
+      contextMock.expects('getVar')
+          .withExactArgs('--var1')
+          .returns(null)
+          .once();
+      const node = new ast.CssNumConvertNode(
+          new ast.CssVarNode('--var1'));
+      expect(resolvedCss(node)).to.be.null;
+    });
+
+    it('should resolve num from a string', () => {
+      const node = new ast.CssNumConvertNode(
+          new ast.CssPassthroughNode('11x'));
+      expect(resolvedCss(node)).to.equal('11');
+    });
+
+    it('should resolve num from a non-parseable string', () => {
+      const node = new ast.CssNumConvertNode(
+          new ast.CssPassthroughNode('A'));
+      expect(resolvedCss(node)).to.be.null;
+    });
+  });
+
+  describe('rand', () => {
+    beforeEach(() => {
+      sandbox.stub(Math, 'random').callsFake(() => 0.25);
+    });
+
+    it('should always consider as non-const', () => {
+      expect(ast.isVarCss('rand()')).to.be.true;
+      expect(ast.isVarCss('rand(10px, 20px)')).to.be.true;
+      expect(ast.isVarCss('rand(10px, 20px)', normalize)).to.be.true;
+      expect(ast.isVarCss('rand(10em, 20em)', normalize)).to.be.true;
+    });
+
+    it('should always be a non-const and no css', () => {
+      const node = new ast.CssRandNode();
+      expect(node.isConst()).to.equal(false);
+      expect(() => node.css()).to.throw(/no css/);
+    });
+
+    it('should resolve a no-arg rand', () => {
+      const node = new ast.CssRandNode();
+      expect(resolvedCss(node)).to.equal('0.25');
+    });
+
+    it('should rand two numbers', () => {
+      const node = new ast.CssRandNode(
+          new ast.CssNumberNode(10),
+          new ast.CssNumberNode(20));
+      expect(resolvedCss(node)).to.equal('12.5');
+    });
+
+    it('should rand two numbers in opposite direction', () => {
+      const node = new ast.CssRandNode(
+          new ast.CssNumberNode(200),
+          new ast.CssNumberNode(100));
+      expect(resolvedCss(node)).to.equal('125');
+    });
+
+    it('should rand two same-unit values - length', () => {
+      const node = new ast.CssRandNode(
+          new ast.CssLengthNode(10, 'px'),
+          new ast.CssLengthNode(20, 'px'));
+      expect(resolvedCss(node)).to.equal('12.5px');
+    });
+
+    it('should rand two same-unit values - times', () => {
+      const node = new ast.CssRandNode(
+          new ast.CssTimeNode(10, 's'),
+          new ast.CssTimeNode(20, 's'));
+      expect(resolvedCss(node)).to.equal('12.5s');
+      expect(resolvedCss(node, normalize)).to.equal('12500ms');
+    });
+
+    it('should rand two same-unit values - percent', () => {
+      const node = new ast.CssRandNode(
+          new ast.CssPercentNode(10),
+          new ast.CssPercentNode(20));
+      expect(resolvedCss(node)).to.equal('12.5%');
+
+      contextMock.expects('getDimension').returns('w').atLeast(1);
+      contextMock.expects('getCurrentElementSize')
+          .returns({width: 110, height: 220}).atLeast(1);
+      expect(resolvedCss(node, normalize)).to.equal('13.75px');
+    });
+
+    it('should resolve both parts', () => {
+      contextMock.expects('getVar')
+          .withExactArgs('--var1')
+          .returns(new ast.CssLengthNode(100, 'px'))
+          .once();
+      contextMock.expects('getVar')
+          .withExactArgs('--var2')
+          .returns(new ast.CssLengthNode(200, 'px'))
+          .once();
+      const node = new ast.CssRandNode(
+          new ast.CssVarNode('--var1'),
+          new ast.CssVarNode('--var2'));
+      expect(resolvedCss(node)).to.equal('125px');
+    });
+
+    it('should resolve to null with null args', () => {
+      contextMock.expects('getVar')
+          .withExactArgs('--var1')
+          .returns(new ast.CssLengthNode(100, 'px'))
+          .once();
+      contextMock.expects('getVar')
+          .withExactArgs('--var2')
+          .returns(null)
+          .once();
+      const node = new ast.CssRandNode(
+          new ast.CssVarNode('--var1'),
+          new ast.CssVarNode('--var2'));
+      expect(resolvedCss(node)).to.be.null;
+    });
+
+    it('should only allow numerics', () => {
+      const node = new ast.CssRandNode(
+          new ast.CssPassthroughNode('A'),
+          new ast.CssPassthroughNode('B'));
+      expect(() => {
+        resolvedCss(node);
+      }).to.throw(/both numerical/);
+    });
+
+    it('should only allow same-type', () => {
+      const node = new ast.CssRandNode(
+          new ast.CssLengthNode(30, 'px'),
+          new ast.CssTimeNode(20, 's'));
+      expect(() => {
+        resolvedCss(node);
+      }).to.throw(/same type/);
+    });
+
+    it('should normalize units', () => {
+      contextMock.expects('getCurrentFontSize').returns(1).once();
+      contextMock.expects('getRootFontSize').returns(2).once();
+      const node = new ast.CssRandNode(
+          new ast.CssLengthNode(10, 'em'),
+          new ast.CssLengthNode(10, 'rem'));
+      expect(resolvedCss(node)).to.equal('12.5px');
+    });
+  });
+
+  describe('index', () => {
+    it('should always consider as non-const', () => {
+      expect(ast.isVarCss('index()', false)).to.be.true;
+      expect(ast.isVarCss('index()', normalize)).to.be.true;
+    });
+
+    it('should always be a non-const and no css', () => {
+      const node = new ast.CssIndexNode();
+      expect(node.isConst()).to.be.false;
+      expect(node.isConst(normalize)).to.be.false;
+      expect(() => node.css()).to.throw(/no css/);
+    });
+
+    it('should resolve a no-arg', () => {
+      contextMock.expects('getCurrentIndex').withExactArgs().returns(11);
+      const node = new ast.CssIndexNode();
+      expect(resolvedCss(node)).to.equal('11');
+    });
+
+    it('should combine with calc', () => {
+      contextMock.expects('getCurrentIndex').withExactArgs().returns(11);
+      const node = new ast.CssCalcProductNode(
+          new ast.CssTimeNode(2, 's'),
+          new ast.CssIndexNode(),
+          '*');
+      expect(node.isConst()).to.be.false;
+      expect(resolvedCss(node)).to.equal('22s');
+    });
+  });
+
   describe('var', () => {
+    it('should always consider as non-const', () => {
+      expect(ast.isVarCss('var(--x)')).to.be.true;
+      expect(ast.isVarCss('var(--x)', normalize)).to.be.true;
+      expect(ast.isVarCss('var(--x, 10px)', normalize)).to.be.true;
+      expect(ast.isVarCss('var(--x, 10em)', normalize)).to.be.true;
+    });
+
     it('should resolve a var node', () => {
       contextMock.expects('getVar')
           .withExactArgs('--var1')
@@ -826,6 +1368,22 @@ describes.sandboxed('CSS resolve', {}, () => {
       expect(node.isConst()).to.be.false;
       expect(node.css()).to.equal('var(--var1)');
       expect(resolvedCss(node)).to.equal('val1');
+    });
+
+    it('should resolve a var node and normalize', () => {
+      contextMock.expects('getDimension').returns('w').atLeast(1);
+      contextMock.expects('getCurrentElementSize')
+          .returns({width: 110, height: 220}).atLeast(1);
+      contextMock.expects('getVar')
+          .withExactArgs('--var1')
+          .returns(new ast.CssPercentNode(11.5))
+          .atLeast(1);
+      const node = new ast.CssVarNode('--var1');
+      expect(node.isConst()).to.be.false;
+      expect(node.isConst(normalize)).to.be.false;
+      expect(node.css()).to.equal('var(--var1)');
+      expect(resolvedCss(node)).to.equal('11.5%');
+      expect(resolvedCss(node, normalize)).to.equal('12.65px');
     });
 
     it('should resolve a var node with def', () => {
@@ -880,6 +1438,13 @@ describes.sandboxed('CSS resolve', {}, () => {
   });
 
   describe('calc', () => {
+    it('should always consider as non-const', () => {
+      expect(ast.isVarCss('calc()')).to.be.true;
+      expect(ast.isVarCss('calc()', normalize)).to.be.true;
+      expect(ast.isVarCss('calc(10px)', normalize)).to.be.true;
+      expect(ast.isVarCss('calc(10em)', normalize)).to.be.true;
+    });
+
     it('should resolve a single-value calc', () => {
       const node = new ast.CssCalcNode(new ast.CssLengthNode(10, 'px'));
       expect(node.isConst()).to.be.false;
@@ -896,6 +1461,20 @@ describes.sandboxed('CSS resolve', {}, () => {
         expect(node.isConst()).to.be.false;
         expect(node.css()).to.equal('10px + 20px');
         expect(resolvedCss(node)).to.equal('30px');
+      });
+
+      it('should add two same-unit values and normalize', () => {
+        const node = new ast.CssCalcSumNode(
+            new ast.CssLengthNode(10, 'em'),
+            new ast.CssLengthNode(20, 'em'),
+            '+');
+        expect(node.isConst()).to.be.false;
+        expect(node.css()).to.equal('10em + 20em');
+        expect(resolvedCss(node)).to.equal('30em');
+
+        contextMock.expects('getCurrentFontSize').returns(10).atLeast(1);
+        expect(node.isConst(normalize)).to.be.false;
+        expect(resolvedCss(node, normalize)).to.equal('300px');
       });
 
       it('should add two same-unit values - times', () => {
@@ -1031,6 +1610,18 @@ describes.sandboxed('CSS resolve', {}, () => {
         expect(node.css()).to.equal('10em + 10%');
         // 10em * 2px + 10% * 220 = 20px + 22px = 42px
         expect(resolvedCss(node)).to.equal('42px');
+      });
+
+      it('should resolve with dimension function', () => {
+        contextMock.expects('getElementSize')
+            .returns({width: 111, height: 222})
+            .twice();
+        const node = new ast.CssCalcSumNode(
+            new ast.CssDimSizeNode('w', '.sel'),
+            new ast.CssDimSizeNode('h', '.sel'),
+            '+');
+        // 111px + 222px = 333px
+        expect(resolvedCss(node)).to.equal('333px');
       });
     });
 

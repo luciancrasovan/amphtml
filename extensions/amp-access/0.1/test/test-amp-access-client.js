@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-import {AccessClientAdapter} from '../amp-access-client';
 import * as lolex from 'lolex';
-import * as sinon from 'sinon';
 import * as mode from '../../../../src/mode';
+import * as sinon from 'sinon';
+import {AccessClientAdapter} from '../amp-access-client';
 
 
 describes.realWin('AccessClientAdapter', {
   amp: true,
 }, env => {
-  let win;
   let ampdoc;
   let clock;
   let validConfig;
@@ -31,9 +30,8 @@ describes.realWin('AccessClientAdapter', {
   let contextMock;
 
   beforeEach(() => {
-    win = env.win;
     ampdoc = env.ampdoc;
-    clock = lolex.install(win);
+    clock = lolex.install({target: ampdoc.win});
 
     validConfig = {
       'authorization': 'https://acme.com/a?rid=READER_ID',
@@ -48,6 +46,7 @@ describes.realWin('AccessClientAdapter', {
 
   afterEach(() => {
     contextMock.verify();
+    clock.uninstall();
   });
 
 
@@ -77,7 +76,7 @@ describes.realWin('AccessClientAdapter', {
     });
 
     it('should allow only lower-than-default timeout in production', () => {
-      sandbox.stub(mode, 'getMode', () => {
+      sandbox.stub(mode, 'getMode').callsFake(() => {
         return {development: false, localDev: false};
       });
 
@@ -159,7 +158,11 @@ describes.realWin('AccessClientAdapter', {
             .withExactArgs('https://acme.com/a?rid=reader1', {
               credentials: 'include',
             })
-            .returns(Promise.resolve({access: 'A'}))
+            .returns(Promise.resolve({
+              json() {
+                return Promise.resolve({access: 'A'});
+              },
+            }))
             .once();
         return adapter.authorize().then(response => {
           expect(response).to.exist;
@@ -198,7 +201,7 @@ describes.realWin('AccessClientAdapter', {
             .withExactArgs('https://acme.com/a?rid=reader1', {
               credentials: 'include',
             })
-            .returns(new Promise(() => {}))  // Never resolved.
+            .returns(new Promise(() => {})) // Never resolved.
             .once();
         const promise = adapter.authorize();
         return Promise.resolve().then(() => {
