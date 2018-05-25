@@ -17,7 +17,7 @@
 import {CSS} from '../../../build/amp-social-share-0.1.css';
 import {KeyCodes} from '../../../src/utils/key-codes';
 import {Services} from '../../../src/services';
-import {addParamsToUrl, parseQueryString, parseUrl} from '../../../src/url';
+import {addParamsToUrl, parseQueryString, parseUrlDeprecated} from '../../../src/url';
 import {dev, user} from '../../../src/log';
 import {dict} from '../../../src/utils/object';
 import {getDataParamsFromAttributes} from '../../../src/dom';
@@ -104,13 +104,12 @@ class AmpSocialShare extends AMP.BaseElement {
 
     urlReplacements.expandUrlAsync(hrefWithVars, bindings).then(href => {
       this.href_ = href;
-      // mailto:, whatsapp: protocols breaks when opened in _blank on iOS Safari
-      const protocol = parseUrl(href).protocol;
+      // mailto:, sms: protocols breaks when opened in _blank on iOS Safari
+      const {protocol} = parseUrlDeprecated(href);
       const isMailTo = protocol === 'mailto:';
-      const isWhatsApp = protocol === 'whatsapp:';
       const isSms = protocol === 'sms:';
       const isIosSafari = this.platform_.isIos() && this.platform_.isSafari();
-      this.target_ = (isIosSafari && (isMailTo || isWhatsApp || isSms))
+      this.target_ = (isIosSafari && (isMailTo || isSms))
         ? '_top' : '_blank';
       if (isSms) {
         // http://stackoverflow.com/a/19126326
@@ -134,7 +133,7 @@ class AmpSocialShare extends AMP.BaseElement {
    * @private
    */
   handleKeyPress_(event) {
-    const keyCode = event.keyCode;
+    const {keyCode} = event;
     if (keyCode == KeyCodes.SPACE || keyCode == KeyCodes.ENTER) {
       event.preventDefault();
       this.handleActivation_();

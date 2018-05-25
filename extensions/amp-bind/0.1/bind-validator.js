@@ -78,7 +78,7 @@ export class BindValidator {
   /**
    * Returns true if (tag, property) binding is allowed.
    * Otherwise, returns false.
-   * @note `tag` and `property` are case-sensitive.
+   * NOTE: `tag` and `property` are case-sensitive.
    * @param {string} tag
    * @param {string} property
    * @return {boolean}
@@ -124,8 +124,7 @@ export class BindValidator {
           user().error(TAG, 'Failed to parse srcset: ', e);
           return false;
         }
-        const sources = srcset.getSources();
-        urls = sources.map(source => source.url);
+        urls = srcset.getUrls();
       } else {
         urls = [value];
       }
@@ -138,7 +137,7 @@ export class BindValidator {
     }
 
     // @see validator/engine/validator.ParsedTagSpec.validateAttributes()
-    const blacklistedValueRegex = rules.blacklistedValueRegex;
+    const {blacklistedValueRegex} = rules;
     if (value && blacklistedValueRegex) {
       const re = new RegExp(blacklistedValueRegex, 'i');
       if (re.test(value)) {
@@ -158,7 +157,7 @@ export class BindValidator {
    */
   isUrlValid_(url, rules) {
     // @see validator/engine/validator.ParsedUrlSpec.validateUrlAndProtocol()
-    const allowedProtocols = rules.allowedProtocols;
+    const {allowedProtocols} = rules;
     if (allowedProtocols && url) {
       const re = /^([^:\/?#.]+):[\s\S]*$/;
       const match = re.exec(url);
@@ -178,6 +177,8 @@ export class BindValidator {
    * Returns the property rules object for (tag, property), if it exists.
    * Returns null if binding is allowed without constraints.
    * Returns undefined if binding is not allowed.
+   * @param {string} tag
+   * @param {string} property
    * @return {(?PropertyRulesDef|undefined)}
    * @private
    */
@@ -323,7 +324,7 @@ function createElementRules_() {
       'spellcheck': null,
       'step': null,
       'type': {
-        blacklistedValueRegex: '(^|\\s)(button|file|image|password|)(\\s|$)',
+        blacklistedValueRegex: '(^|\\s)(button|image|)(\\s|$)',
       },
       'value': null,
       'width': null,

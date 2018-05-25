@@ -185,11 +185,7 @@ export class IframeTransport {
             entry.attribution.forEach(attrib => {
               if (this.frameUrl_ == attrib.containerSrc &&
                     ++this.numLongTasks_ % LONG_TASK_REPORTING_THRESHOLD == 0) {
-                user().error(TAG_,
-                    'Long Task: ' +
-                      `Vendor: "${this.type_}" ` +
-                      `Duration: ${entry.duration}ms ` +
-                      `Occurrences: ${this.numLongTasks_}`);
+                user().error(TAG_, `Long Task: Vendor: "${this.type_}"`);
               }
             });
           }
@@ -238,7 +234,7 @@ export class IframeTransport {
   /**
    * Create a unique value to differentiate messages from a particular
    * creative to the cross-domain iframe, or to identify the iframe itself.
-   * @returns {string}
+   * @return {string}
    * @private
    */
   static createUniqueId_() {
@@ -267,7 +263,7 @@ export class IframeTransport {
   /**
    * Gets the FrameData associated with a particular cross-domain frame type.
    * @param {string} type The type attribute of the amp-analytics tag
-   * @returns {FrameData}
+   * @return {FrameData}
    * @VisibleForTesting
    */
   static getFrameData(type) {
@@ -284,7 +280,7 @@ export class IframeTransport {
   }
 
   /**
-   * @returns {string} Unique ID of this instance of IframeTransport
+   * @return {string} Unique ID of this instance of IframeTransport
    * @VisibleForTesting
    */
   getCreativeId() {
@@ -292,7 +288,7 @@ export class IframeTransport {
   }
 
   /**
-   * @returns {string} Type attribute of parent amp-analytics instance
+   * @return {string} Type attribute of parent amp-analytics instance
    * @VisibleForTesting
    */
   getType() {

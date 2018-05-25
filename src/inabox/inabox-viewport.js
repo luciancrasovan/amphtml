@@ -132,9 +132,6 @@ export class ViewportBindingInabox {
     /** @private {?Promise<!../layout-rect.LayoutRectDef>} */
     this.requestPositionPromise_ = null;
 
-    /** @private {!../service/vsync-impl.Vsync} */
-    this.vsync_ = Services.vsyncFor(this.win);
-
     /** @private {function()} */
     this.fireScrollThrottle_ = throttle(this.win, () => {
       this.scrollObservable_.fire();
@@ -210,6 +207,11 @@ export class ViewportBindingInabox {
   /** @override */
   getScrollingElement() {
     return this.getBodyElement();
+  }
+
+  /** @override */
+  supportsPositionFixed() {
+    return false;
   }
 
   /**
@@ -386,7 +388,7 @@ export function installInaboxViewportService(ampdoc) {
 /**
  * @param {!../layout-rect.LayoutRectDef} newRect
  * @param {!../layout-rect.LayoutRectDef} oldRect
- * @returns {boolean}
+ * @return {boolean}
  */
 function isChanged(newRect, oldRect) {
   return isMoved(newRect, oldRect) || isResized(newRect, oldRect);
@@ -395,7 +397,7 @@ function isChanged(newRect, oldRect) {
 /**
  * @param {!../layout-rect.LayoutRectDef} newRect
  * @param {!../layout-rect.LayoutRectDef} oldRect
- * @returns {boolean}
+ * @return {boolean}
  */
 function isMoved(newRect, oldRect) {
   return newRect.left != oldRect.left || newRect.top != oldRect.top;
@@ -404,7 +406,7 @@ function isMoved(newRect, oldRect) {
 /**
  * @param {!../layout-rect.LayoutRectDef} newRect
  * @param {!../layout-rect.LayoutRectDef} oldRect
- * @returns {boolean}
+ * @return {boolean}
  */
 function isResized(newRect, oldRect) {
   return newRect.width != oldRect.width || newRect.height != oldRect.height;

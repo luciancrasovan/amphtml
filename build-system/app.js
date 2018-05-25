@@ -26,6 +26,7 @@ const bodyParser = require('body-parser');
 const formidable = require('formidable');
 const fs = BBPromise.promisifyAll(require('fs'));
 const jsdom = require('jsdom');
+const multer = require('multer');
 const path = require('path');
 const request = require('request');
 const pc = process;
@@ -38,7 +39,7 @@ app.use('/amp4test', require('./amp4test'));
 app.use((req, res, next) => {
   if (req.query.csp) {
     res.set({
-      'content-security-policy': "default-src * blob: data:; script-src https://cdn.ampproject.org/rtv/ https://cdn.ampproject.org/v0.js https://cdn.ampproject.org/v0/ https://cdn.ampproject.org/viewer/ http://localhost:8000 https://localhost:8000; object-src 'none'; style-src 'unsafe-inline' https://cdn.ampproject.org/rtv/ https://cdn.materialdesignicons.com https://cloud.typography.com https://fast.fonts.net https://fonts.googleapis.com https://maxcdn.bootstrapcdn.com https://p.typekit.net https://use.typekit.net; report-uri https://csp-collector.appspot.com/csp/amp",
+      'content-security-policy': "default-src * blob: data:; script-src https://cdn.ampproject.org/rtv/ https://cdn.ampproject.org/v0.js https://cdn.ampproject.org/v0/ https://cdn.ampproject.org/viewer/ http://localhost:8000 https://localhost:8000; object-src 'none'; style-src 'unsafe-inline' https://cdn.ampproject.org/rtv/ https://cdn.materialdesignicons.com https://cloud.typography.com https://fast.fonts.net https://fonts.googleapis.com https://maxcdn.bootstrapcdn.com https://p.typekit.net https://use.fontawesome.com https://use.typekit.net; report-uri https://csp-collector.appspot.com/csp/amp",
     });
   }
   next();
@@ -199,6 +200,17 @@ app.use('/form/json/poll1', (req, res) => {
   });
 });
 
+const upload = multer();
+
+app.post('/form/json/upload', upload.fields([{name: 'myFile'}]), (req, res) => {
+  assertCors(req, res, ['POST']);
+
+  const fileData = req.files['myFile'][0];
+  const contents = fileData.buffer.toString();
+
+  res.json({message: contents});
+});
+
 app.use('/form/search-html/get', (req, res) => {
   res.setHeader('Content-Type', 'text/html');
   res.end(`
@@ -316,8 +328,10 @@ function proxyToAmpProxy(req, res, mode) {
         // <base> href pointing to the proxy, so that images, etc. still work.
         .replace('<head>', '<head><base href="https://cdn.ampproject.org/">');
     const inabox = req.query['inabox'] == '1';
+    // TODO(ccordry): Remove this when story v01 is depricated.
+    const storyV1 = req.query['story_v'] === '1';
     const urlPrefix = getUrlPrefix(req);
-    body = replaceUrls(mode, body, urlPrefix, inabox);
+    body = replaceUrls(mode, body, urlPrefix, inabox, storyV1);
     if (inabox) {
       // Allow CORS requests for A4A.
       const origin = req.headers.origin || urlPrefix;
@@ -328,13 +342,12 @@ function proxyToAmpProxy(req, res, mode) {
 }
 
 
-const liveListUpdateFile = '/examples/live-list-update.amp.html';
-let liveListCtr = 0;
 let itemCtr = 2;
-let liveListDoc = null;
 const doctype = '<!doctype html>\n';
-app.use('/examples/live-list-update.amp.html', (req, res, next) => {
+const liveListDocs = Object.create(null);
+app.use('/examples/live-list-update(-reverse)?.amp.html', (req, res, next) => {
   const mode = pc.env.SERVE_MODE;
+  let liveListDoc = liveListDocs[req.baseUrl];
   if (mode != 'compiled' && mode != 'default') {
     // Only handle compile(prev min)/default (prev max) mode
     next();
@@ -349,16 +362,19 @@ app.use('/examples/live-list-update.amp.html', (req, res, next) => {
     return;
   }
   if (!liveListDoc) {
-    const liveListUpdateFullPath = `${pc.cwd()}${liveListUpdateFile}`;
+    const liveListUpdateFullPath = `${pc.cwd()}${req.baseUrl}`;
+    console.log('liveListUpdateFullPath', liveListUpdateFullPath);
     const liveListFile = fs.readFileSync(liveListUpdateFullPath);
-    liveListDoc = jsdom.jsdom(liveListFile);
+    liveListDoc = liveListDocs[req.baseUrl] = new jsdom.JSDOM(liveListFile)
+        .window.document;
+    liveListDoc.ctr = 0;
   }
   const liveList = liveListDoc.querySelector('#my-live-list');
   const perPage = Number(liveList.getAttribute('data-max-items-per-page'));
   const items = liveList.querySelector('[items]');
   const pagination = liveListDoc.querySelector('#my-live-list [pagination]');
   const item1 = liveList.querySelector('#list-item-1');
-  if (liveListCtr != 0) {
+  if (liveListDoc.ctr != 0) {
     if (Math.random() < .8) {
       // Always run a replace on the first item
       liveListReplace(item1);
@@ -389,7 +405,7 @@ app.use('/examples/live-list-update.amp.html', (req, res, next) => {
   }
   let outerHTML = liveListDoc.documentElement./*OK*/outerHTML;
   outerHTML = replaceUrls(mode, outerHTML);
-  liveListCtr++;
+  liveListDoc.ctr++;
   res.send(`${doctype}${outerHTML}`);
 });
 
@@ -546,6 +562,24 @@ app.use('/impression-proxy/', (req, res) => {
   // Or fake response with status 204 if viewer replaceUrl is provided
 });
 
+app.post('/get-consent-v1/', (req, res) => {
+  assertCors(req, res, ['POST']);
+  const body = {
+    'promptIfUnknown': true,
+    'sharedData': {
+      'tfua': true,
+      'coppa': true,
+    },
+  };
+  res.json(body);
+});
+
+app.post('/get-consent-no-prompt/', (req, res) => {
+  assertCors(req, res, ['POST']);
+  const body = {};
+  res.json(body);
+});
+
 // Proxy with local JS.
 // Example:
 // http://localhost:8000/proxy/s/www.washingtonpost.com/amphtml/news/post-politics/wp/2016/02/21/bernie-sanders-says-lower-turnout-contributed-to-his-nevada-loss-to-hillary-clinton/
@@ -595,7 +629,7 @@ app.get('/a4a_template/*', (req, res) => {
 // Example:
 // http://localhost:8000/iframe-echo-message?message=${payload}
 app.get('/iframe-echo-message', (req, res) => {
-  const message = req.query.message;
+  const {message} = req.query;
   res.send(
       `<!doctype html>
         <body style="background-color: yellow">
@@ -681,9 +715,10 @@ app.use(['/examples/*', '/extensions/*'], (req, res, next) => {
 });
 
 /**
- * Append ?sleep=5 to any included JS file in examples to emulate delay in loading that
- * file. This allows you to test issues with your extension being late to load
- * and testing user interaction with your element before your code loads.
+ * Append ?sleep=5 to any included JS file in examples to emulate delay in
+ * loading that file. This allows you to test issues with your extension being
+ * late to load and testing user interaction with your element before your code
+ * loads.
  *
  * Example delay loading amp-form script by 5 seconds:
  * <script async custom-element="amp-form"
@@ -863,8 +898,11 @@ app.use('/subscription/:id/entitlements', (req, res) => {
   assertCors(req, res, ['GET']);
   res.json({
     source: 'local' + req.params.id,
-    products: ['scenic-2017.appspot.com:news',
-      'scenic-2017.appspot.com:product2'],
+    granted: true,
+    grantedReason: 'NOT_SUBSCRIBED',
+    data: {
+      login: true,
+    },
   });
 });
 
@@ -1043,10 +1081,17 @@ app.get('/dist/ww(.max)?.js', (req, res) => {
  * @param {string} file
  * @param {string=} hostName
  * @param {boolean=} inabox
+ * @param {boolean=} storyV1
  */
-function replaceUrls(mode, file, hostName, inabox) {
+function replaceUrls(mode, file, hostName, inabox, storyV1) {
   hostName = hostName || '';
   if (mode == 'default') {
+    // TODO:(ccordry) remove this when story 0.1 is deprecated
+    if (storyV1) {
+      file = file.replace(
+          /https:\/\/cdn\.ampproject\.org\/v0\/amp-story-0\.1\.js/g,
+          hostName + '/dist/v0/amp-story-1.0.max.js');
+    }
     file = file.replace(
         /https:\/\/cdn\.ampproject\.org\/v0\.js/g,
         hostName + '/dist/amp.js');

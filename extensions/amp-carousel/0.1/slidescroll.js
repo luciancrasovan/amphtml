@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {ActionTrust} from '../../../src/action-trust';
+import {ActionTrust} from '../../../src/action-constants';
 import {Animation} from '../../../src/animation';
 import {BaseSlides} from './base-slides';
 import {Services} from '../../../src/services';
@@ -22,7 +22,6 @@ import {bezierCurve} from '../../../src/curve';
 import {createCustomEvent} from '../../../src/event-helper';
 import {dev} from '../../../src/log';
 import {getStyle, setStyle} from '../../../src/style';
-import {isConnectedNode} from '../../../src/dom';
 import {isLayoutSizeDefined} from '../../../src/layout';
 import {numeric} from '../../../src/transition';
 import {startsWith} from '../../../src/string';
@@ -182,10 +181,6 @@ export class AmpSlideScroll extends BaseSlides {
       slideWrapper.classList.add('i-amphtml-slide-item');
       this.slidesContainer_.appendChild(slideWrapper);
 
-      // Slides must only be re-parented to DOM-connected nodes to avoid
-      // errors when used in a shadow document (#9291).
-      dev().assert(isConnectedNode(slideWrapper),
-          'Slides must only be re-parented to connected nodes.');
       slideWrapper.appendChild(slide);
 
       this.slideWrappers_.push(slideWrapper);
@@ -203,11 +198,11 @@ export class AmpSlideScroll extends BaseSlides {
         'touchend', this.touchEndHandler_.bind(this));
 
     this.registerAction('goToSlide', invocation => {
-      const args = invocation.args;
+      const {args} = invocation;
       if (args) {
         this.showSlideWhenReady(args['index']);
       }
-    }, ActionTrust.HIGH);
+    }, ActionTrust.LOW);
   }
 
   /** @override */
@@ -480,7 +475,7 @@ export class AmpSlideScroll extends BaseSlides {
     this.snappingInProgress_ = true;
     const newIndex = this.getNextSlideIndex_(currentScrollLeft);
     this.vsync_.mutate(() => {
-      //TODO (camelburrito): Identify more platforms that require
+      // TODO(amphtml): Identify more platforms that require
       // i-amphtml-no-scroll.
       if (this.isIos_) {
         // Make the container non scrollable to stop scroll events.
@@ -529,7 +524,7 @@ export class AmpSlideScroll extends BaseSlides {
    * @private
    */
   showSlide_(newIndex) {
-    const noOfSlides_ = this.noOfSlides_;
+    const {noOfSlides_} = this;
     newIndex = dev().assertNumber(newIndex);
     if (newIndex < 0 ||
         newIndex >= noOfSlides_ ||
@@ -632,7 +627,7 @@ export class AmpSlideScroll extends BaseSlides {
    * @private
    */
   hideRestOfTheSlides_(indexArr) {
-    const noOfSlides_ = this.noOfSlides_;
+    const {noOfSlides_} = this;
     for (let i = 0; i < noOfSlides_; i++) {
       if (!this.slideWrappers_[i].classList.contains(SHOWN_CSS_CLASS)) {
         continue;

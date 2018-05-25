@@ -1,5 +1,12 @@
 {
-  "allow-doc-opt-in": ["amp-animation", "ampdoc-shell", "amp-ima-video", "url-replacement-v2"],
+  "allow-doc-opt-in": [
+    "amp-date-picker",
+    "amp-next-page",
+    "ampdoc-shell",
+    "inabox-rov",
+    "inline-styles",
+    "url-replacement-v2"
+  ],
   "allow-url-opt-in": ["pump-early-frame"],
 
   "canary": 0,
@@ -26,9 +33,14 @@
   "a4a-measure-get-ad-urls": 0,
   "3p-use-ampcontext": 1,
   "amp-animation": 1,
+  "amp-live-list-sorting": 1,
   "amp-sidebar toolbar": 1,
+  "svg-in-mustache": 0.1,
   "a4a-safeframe-preloading-off": 0.01,
   "expUnconditionedAdxIdentity": 0.01,
   "expUnconditionedDfpIdentity": 0.01,
-  "expUnconditionedCanonicalHoldback": 0.01
+  "expUnconditionedCanonicalHoldback": 0.01,
+  "amp-consent": 1,
+  "iframe-messaging": 1,
+  "amp-img-native-srcset": 0.1
 }

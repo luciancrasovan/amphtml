@@ -20,13 +20,13 @@ const closureCompiler = require('gulp-closure-compiler');
 const colors = require('ansi-colors');
 const fs = require('fs-extra');
 const gulp = require('gulp');
-const highlight = require('cli-highlight').highlight;
-const internalRuntimeToken = require('../internal-version').TOKEN;
-const internalRuntimeVersion = require('../internal-version').VERSION;
+const {TOKEN: internalRuntimeToken, VERSION: internalRuntimeVersion} = require('../internal-version') ;
+
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const rimraf = require('rimraf');
 const shortenLicense = require('../shorten-license');
+const {highlight} = require('cli-highlight');
 
 const isProdBuild = !!argv.type;
 const queue = [];
@@ -145,8 +145,6 @@ function compile(entryModuleFilenames, outputDir,
       'build/fake-module/**/*.js',
       'build/patched-module/**/*.js',
       'build/experiments/**/*.js',
-      // Strange access/login related files.
-      'build/all/v0/*.js',
       // A4A has these cross extension deps.
       'extensions/amp-ad-network*/**/*-config.js',
       'extensions/amp-ad/**/*.js',
@@ -168,6 +166,12 @@ function compile(entryModuleFilenames, outputDir,
       'extensions/amp-subscriptions/**/*.js',
       // Needed to access UserNotificationManager from other extensions
       'extensions/amp-user-notification/**/*.js',
+      // Needed for VideoService
+      'extensions/amp-video-service/**/*.js',
+      // Needed to access ConsentPolicyManager from other extensions
+      'extensions/amp-consent/**/*.js',
+      // Needed for AmpViewerIntegrationVariableService
+      'extensions/amp-viewer-integration/**/*.js',
       'src/*.js',
       'src/!(inabox)*/**/*.js',
       '!third_party/babel/custom-babel-helpers.js',
@@ -185,6 +189,7 @@ function compile(entryModuleFilenames, outputDir,
       'third_party/webcomponentsjs/ShadowCSS.js',
       'third_party/rrule/rrule.js',
       'third_party/react-dates/bundle.js',
+      'node_modules/dompurify/dist/purify.cjs.js',
       'node_modules/promise-pjs/promise.js',
       'node_modules/web-animations-js/web-animations.install.js',
       'node_modules/web-activities/activity-ports.js',
@@ -194,6 +199,8 @@ function compile(entryModuleFilenames, outputDir,
       // Not sure what these files are, but they seem to duplicate code
       // one level below and confuse the compiler.
       '!node_modules/core-js/modules/library/**.js',
+      // Don't include rollup configs
+      '!**/rollup.config.js',
       // Don't include tests.
       '!**_test.js',
       '!**/test-*.js',
@@ -339,7 +346,8 @@ function compile(entryModuleFilenames, outputDir,
     let stream = gulp.src(srcs)
         .pipe(closureCompiler(compilerOptions))
         .on('error', function(err) {
-          console./* OK*/error(colors.red('Compiler error:\n') +
+          console./* OK*/error(colors.red(
+              'Compiler error for ' + outputFilename + ':\n') +
               formatClosureCompilerError(err.message));
           process.exit(1);
         });

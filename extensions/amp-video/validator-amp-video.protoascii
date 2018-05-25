@@ -60,10 +60,18 @@ attr_lists: {
     name: "muted"
     value: ""
   }
+  attrs: {
+    name: "noaudio"
+    value: ""
+  }
   attrs: { name: "placeholder" }
   attrs: {
     name: "preload"
-    value_regex: "(none|metadata|auto|)"
+    value_regex: "auto|metadata|none|"
+  }
+  attrs: {
+    name: "rotate-to-fullscreen"
+    value: ""
   }
   attrs: {
     name: "src"
@@ -101,6 +109,7 @@ tags: {  # <amp-video> not in amp-story.
   attrs: { name: "poster" }
   attr_lists: "extended-amp-global"
   attr_lists: "amp-video-common"
+  attr_lists: "lightboxable-elements"
   spec_url: "https://www.ampproject.org/docs/reference/components/amp-video"
   amp_layout: {
     supported_layouts: FILL

@@ -76,7 +76,7 @@ Follow this process for contributing new features:
 * Familiarize yourself with the [AMP Design Principles](contributing/DESIGN_PRINCIPLES.md)
 * [Create a new GitHub issue](https://github.com/ampproject/amphtml/issues/new) to start discussion of the new feature.
 * Before starting on the code get approval for your feature from an [OWNER](https://github.com/ampproject/amphtml/search?utf8=%E2%9C%93&q=filename%3AOWNERS.yaml&type=Code) of your feature's area and a [core committer](https://github.com/ampproject/amphtml/blob/master/GOVERNANCE.md#core-committers).  In most cases the people who can give this approval and are most familiar with your feature's area will get involved proactively or someone else in the community will add them.  If you are having trouble finding the right people add a comment on the issue or reach out on one of the channels in [How to get help](contributing/getting-started-e2e.md#how-to-get-help).
-* Consider bringing the eng design for your feature to our [weekly design review](#weekly-design-review).
+* Consider bringing the eng design for your feature to our [weekly design review](#weekly-design-reviews).
 * Follow the guidelines for [Contributing code](#contributing-code) described above.
 
 ## Contributing extended components
@@ -117,6 +117,10 @@ Technical issues, designs, etc. are discussed using several different channels:
 
 - [GitHub issues](https://github.com/ampproject/amphtml/issues) and [pull requests](https://github.com/ampproject/amphtml/pulls)
 - [Slack](https://amphtml.slack.com) ([signup](https://docs.google.com/forms/d/1wAE8w3K5preZnBkRk-MD1QkX8FmlRDxd_vs4bFSeJlQ/viewform?fbzx=4406980310789882877))
+  - the [#contributing](https://amphtml.slack.com/messages/C9HRJ1GPN/details/) channel is the main channel for you to discuss/ask questions about *contributing* to the open source project
+  - if you're *new to contributing* to AMP stop by [#welcome-contributors](https://amphtml.slack.com/messages/C432AFMFE/details/) to say hi!
+  - if you have a question about *using AMP on your site*, consider using [Stack Overflow](https://stackoverflow.com/questions/tagged/amp-html) first; if you can't find answers there the [#using-amp](https://amphtml.slack.com/messages/C9HPA6HGB/details/) Slack channel is available
+  - there are many other Slack channels for more specific topics; after you join our Slack click on the "Channels" header to find other channels you want to participate in
 - the [amphtml-discuss Google Group](https://groups.google.com/forum/#!forum/amphtml-discuss)
 
 ### Status updates
