@@ -37,8 +37,11 @@ export function teads(global, data) {
     global._tta = data.tag.tta;
     global._ttp = data.tag.ttp;
 
-    loadScript(global, 'https://cdn.teads.tv/media/format/' + encodeURI(data.tag.js || 'v3/teads-format.min.js'));
+    // loadScript(global, 'https://cdn.teads.tv/media/format/' + encodeURI(data.tag.js || 'v3/teads-format.min.js'));
+    loadScript(global, 'http://localhost:8081/teads/teads20180710.min.js');
   } else {
-    loadScript(global, 'https://a.teads.tv/page/' + encodeURIComponent(data.pid) + '/tag');
+    console.log('before TEADS TAG!!!!');
+    // loadScript(global, 'https://a.teads.tv/page/' + encodeURIComponent(data.pid) + '/tag');
+    loadScript(global, 'http://localhost:8081/teads/tag.js');
   }
 }
