@@ -29,7 +29,8 @@ export function admanmedia(global, data) {
   // loadScript(global, `http://localhost:4000/go?replay=true&vast=http%3A%2F%2Fmona.admanmedia.com%2Fvast%3Fpmo%3D7a4d4868&id=${encodedId}`, () => {
   // VPAID
   // loadScript(global, `http://localhost:4000/go?vast=http%3A%2F%2Fbs.serving-sys.com%2FServing%3Fcn%3Ddisplay%26c%3D23%26pl%3DVAST%26pli%3D21266633%26PluID%3D0%26pos%3D1719%26ord%3D%5Btimestamp%5D%26cim%3D1&id=${encodedId}`, () => {
-  loadScript(global, `http://localhost:4000/go?replay=true&id=${encodedId}`, () => {
+  // loadScript(global, `http://localhost:4000/pubgo?id=${encodedId}`, () => {
+  loadScript(global, `https://pub.admanmedia.com/go?id=${encodedId}`, () => {
     const pattern = `script[src$="id=${encodedId}"]`;
     const scriptTag = global.document.querySelector(pattern);
     scriptTag.setAttribute('id', `hybs-${encodedId}`);
@@ -38,8 +39,8 @@ export function admanmedia(global, data) {
     global.context.noContentAvailable();
   });
 
-  // this is only for testing if Duplicate tag exception is launched inside AMP iframe comment it otherwise
-  // loadScript(global, `http://localhost:4000/go?id=${encodedId}`, () => {
+  //this is only for testing if Duplicate tag exception is launched inside AMP iframe comment it otherwise
+  // loadScript(global, `http://localhost:4000/go?replay=true&vast=${encodedVast}id=${encodedId}`, () => {
   //   const pattern = `script[src$="id=${encodedId}"]`;
   //   const scriptTag = global.document.querySelectorAll(pattern)[1];
   //   console.log('script tags', scriptTag);
